@@ -8,6 +8,8 @@
 ## Build Orchestration
 - Root Buck2 configuration uses bundled prelude (`.buckconfig` with `[external_cells] prelude = bundled`).
 - Root `BUCK` exposes command targets that proxy into module scripts.
+- For Buck changes, validate through Buck itself (not only direct shell scripts): run `buck2 run //:check` after scaffolding and before claiming setup complete.
+- Keep `.buckconfig` cell aliases (for example `toolchains`) aligned with bundled prelude expectations and verify shell wrappers work when invoked from Buck resource paths.
 - Preferred entry points:
   - `buck2 run //:install`
   - `buck2 run //:lint`
