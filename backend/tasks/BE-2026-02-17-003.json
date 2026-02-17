@@ -1,0 +1,158 @@
+{
+  "task_id": "BE-2026-02-17-003",
+  "feature_branch": "feature/backend/dual-persistence-routes",
+  "description": "Implement separate persistence routes for embedded store and OpenAI vector store so ingestion outputs can be persisted independently with idempotency and clear failure semantics.",
+  "bdd_flows": [
+    {
+      "title": "Persist chunks to embedded store",
+      "given": "a document has been ingested and chunk metadata exists",
+      "when": "a client calls POST /v1/rag/documents/{document_id}/persist/embedded",
+      "then": "chunks are indexed in embedded storage and the API returns persisted counts and timing metrics"
+    },
+    {
+      "title": "Persist chunks to OpenAI vector store",
+      "given": "a document has been ingested and vector store configuration is valid",
+      "when": "a client calls POST /v1/rag/documents/{document_id}/persist/vector-store",
+      "then": "files/chunks are uploaded to OpenAI vector store and the API returns vector_store_id plus file counts"
+    },
+    {
+      "title": "Handle partial failures without hidden corruption",
+      "given": "one persistence backend is unavailable",
+      "when": "the corresponding persistence route is invoked",
+      "then": "the failing route returns actionable errors and the other store's state is unchanged"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi",
+      "purpose": "HTTP routes and validation"
+    },
+    {
+      "name": "sqlalchemy",
+      "repository": "https://github.com/sqlalchemy/sqlalchemy",
+      "purpose": "embedded persistence metadata and transactional behavior"
+    },
+    {
+      "name": "rank-bm25",
+      "repository": "https://github.com/dorianbrown/rank_bm25",
+      "purpose": "BM25 index structures for embedded retrieval"
+    },
+    {
+      "name": "openai",
+      "repository": "https://github.com/openai/openai-python",
+      "purpose": "OpenAI vector store and file search integration"
+    },
+    {
+      "name": "tenacity",
+      "repository": "https://github.com/jd/tenacity",
+      "purpose": "bounded retry policy for transient OpenAI API failures"
+    }
+  ],
+  "target_files": [
+    "backend/src/synextra_backend/api/rag_persistence.py",
+    "backend/src/synextra_backend/services/embedded_store_persistence.py",
+    "backend/src/synextra_backend/services/openai_vector_store_persistence.py",
+    "backend/src/synextra_backend/repositories/rag_document_repository.py",
+    "backend/src/synextra_backend/schemas/rag_persistence.py",
+    "backend/tests/unit/services/test_embedded_store_persistence.py",
+    "backend/tests/unit/services/test_openai_vector_store_persistence.py",
+    "backend/tests/integration/api/test_rag_persistence_endpoints.py",
+    "backend/tests/contracts/test_rag_persistence_contract.py",
+    "backend/tests/fixtures/1706.03762v7.pdf"
+  ],
+  "related_adrs": [
+    "backend/adrs/0002-pdf-ingestion-and-chunking.md",
+    "backend/adrs/0003-dual-store-retrieval-and-agent-orchestration.md"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "document chunks are present",
+      "when": "persist/embedded is called",
+      "then": "embedded index rows are created and success payload includes indexed_chunk_count"
+    },
+    {
+      "if": "vector store credentials/configuration are valid",
+      "when": "persist/vector-store is called",
+      "then": "OpenAI upload succeeds and response includes vector_store_id and file_ids"
+    },
+    {
+      "if": "persist/vector-store is retried for an already persisted document",
+      "when": "idempotency key or source hash matches previous run",
+      "then": "route returns a stable idempotent success without duplicate file uploads"
+    },
+    {
+      "if": "OpenAI API returns transient 5xx",
+      "when": "vector persistence retries are exhausted",
+      "then": "route returns 502 with retry metadata and does not mutate embedded-store state"
+    },
+    {
+      "if": "1706.03762v7.pdf has been ingested",
+      "when": "both persistence routes are exercised in integration tests",
+      "then": "embedded and vector persistence artifacts can be verified independently"
+    }
+  ],
+  "tdd_test_matrix": [
+    {
+      "layer": "unit",
+      "focus": "persistence adapters and idempotency logic",
+      "cases": [
+        "embedded persistence computes deterministic chunk signatures",
+        "vector persistence maps chunk metadata into OpenAI upload payloads",
+        "transient API failures trigger bounded retries and structured error wrapping"
+      ]
+    },
+    {
+      "layer": "integration",
+      "focus": "route behavior and store isolation",
+      "cases": [
+        "persist/embedded indexes all chunks for 1706.03762v7.pdf ingestion output",
+        "persist/vector-store returns vector_store_id and uploaded file counts",
+        "one route failing leaves the other store untouched"
+      ]
+    },
+    {
+      "layer": "edge",
+      "focus": "error and race conditions",
+      "cases": [
+        "unknown document_id returns 404 without side effects",
+        "duplicate concurrent persistence calls do not double-write records",
+        "network timeout in vector persistence surfaces deterministic 502 payload"
+      ]
+    },
+    {
+      "layer": "frontend_backend_contract",
+      "focus": "persistence route payload compatibility with frontend orchestration",
+      "cases": [
+        "embedded persistence response includes store, status, indexed_chunk_count, and duration_ms",
+        "vector persistence response includes store, status, vector_store_id, and uploaded_file_count",
+        "error response includes stable fields: code, message, recoverable, and request_id"
+      ]
+    }
+  ],
+  "status_lifecycle": ["todo", "review", "done"],
+  "status": "todo",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "pending",
+    "verdict": "pending",
+    "notes": []
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T13:52:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Drafted persistence-routes planning spec for embedded and vector store split with explicit idempotency goals."
+    },
+    {
+      "timestamp": "2026-02-17T13:54:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Linked ADR 0002/0003 and captured QA fixture requirement for 1706.03762v7.pdf integration validation."
+    },
+    {
+      "timestamp": "2026-02-17T13:55:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Kept status at todo with pending subagent review fields because this file is planning-only."
+    }
+  ]
+}
