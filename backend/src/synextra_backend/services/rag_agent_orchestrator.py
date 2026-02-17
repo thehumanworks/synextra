@@ -244,10 +244,8 @@ class RagAgentOrchestrator:
         try:
             response = client.responses.create(
                 model=model,
-                input=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
+                instructions=system,
+                input=user,
             )
             # The SDK returns a list of output items; we only need the first text.
             output_text = getattr(response, "output_text", None)

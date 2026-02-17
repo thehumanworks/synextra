@@ -52,3 +52,4 @@
 - For `_simple_summary` outputs, normalize internal whitespace before joining sentences to avoid newline-heavy token dumps from retrieval chunks.
 - For repeated near-duplicate citations, fingerprint normalized supporting quotes (prefix-based) rather than relying on chunk ids alone.
 - OpenAI answer synthesis is not gated by `SYNEXTRA_USE_OPENAI_CHAT`; it is attempted whenever `OPENAI_API_KEY` is present, with local summary fallback on missing key/SDK/error.
+- For Responses API migration, prefer native `instructions` + `input` fields over chat-style role arrays when no multi-item context object is required.

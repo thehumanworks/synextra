@@ -93,9 +93,10 @@ async def test_synthesize_answer_uses_openai_even_when_feature_flag_off(
     captured: dict[str, object] = {}
 
     class _FakeResponses:
-        def create(self, *, model: str, input: object) -> object:  # noqa: A002
+        def create(self, *, model: str, input: object, instructions: str) -> object:  # noqa: A002
             captured["model"] = model
             captured["input"] = input
+            captured["instructions"] = instructions
             return types.SimpleNamespace(output_text="Generated answer")
 
     class _FakeOpenAI:
@@ -123,3 +124,10 @@ async def test_synthesize_answer_uses_openai_even_when_feature_flag_off(
 
     assert answer == "Generated answer"
     assert captured["model"] == "gpt-test-model"
+    assert isinstance(captured["input"], str)
+    assert "Question: What is the Transformer model described in the paper?" in str(
+        captured["input"]
+    )
+    assert "Answer the user's question using only the provided evidence." in str(
+        captured.get("instructions", "")
+    )
