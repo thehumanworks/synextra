@@ -1,0 +1,153 @@
+{
+  "task_id": "FE-2026-02-17-004",
+  "feature_branch": "feature/spec-frontend-rag",
+  "description": "Integrate retrieval-mode selection (`embedded|vector|hybrid`) into the chat UI, forward mode state to backend routing, and establish extensible rendering contracts for optional future verifier/fixer agent metadata.",
+  "related_adrs": [
+    "frontend/adrs/0003-structured-chat-rendering-and-mode-routing.md",
+    "frontend/adrs/0002-dark-theme-typography-design-system.md"
+  ],
+  "bdd_flows": [
+    {
+      "title": "User-selected retrieval mode is sent with each request",
+      "given": "a user selects a retrieval mode from the UI selector",
+      "when": "the user submits a chat prompt",
+      "then": "the frontend request payload includes the selected mode (`embedded|vector|hybrid`) for backend branching"
+    },
+    {
+      "title": "Mode-specific backend responses render clearly",
+      "given": "the backend returns structured results for different retrieval modes",
+      "when": "responses are rendered in the chat thread",
+      "then": "the UI surfaces mode context and citations without schema mismatches"
+    },
+    {
+      "title": "Extensible agent event rendering is forward-compatible",
+      "given": "future verifier/fixer agent events are included in response metadata",
+      "when": "the renderer encounters known and unknown event types",
+      "then": "known types render specialized UI and unknown types degrade gracefully"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "react",
+      "repository": "https://github.com/facebook/react",
+      "purpose": "mode selector and chat integration components"
+    },
+    {
+      "name": "next",
+      "repository": "https://github.com/vercel/next.js",
+      "purpose": "request routing and API integration in App Router"
+    },
+    {
+      "name": "zod",
+      "repository": "https://github.com/colinhacks/zod",
+      "purpose": "mode contract validation and safe extensibility for agent event payloads"
+    },
+    {
+      "name": "playwright",
+      "repository": "https://github.com/microsoft/playwright",
+      "purpose": "manual mode-switch and backend-integration validation"
+    }
+  ],
+  "target_files": [
+    "frontend/src/components/retrieval-mode-selector.tsx",
+    "frontend/src/components/retrieval-mode-selector.test.tsx",
+    "frontend/src/components/integration-demo.tsx",
+    "frontend/src/components/integration-demo.test.tsx",
+    "frontend/src/lib/chat/mode-contract.ts",
+    "frontend/src/lib/chat/mode-contract.test.ts",
+    "frontend/src/lib/chat/agent-event-renderers.tsx",
+    "frontend/src/lib/chat/agent-event-renderers.test.tsx",
+    "frontend/src/app/api/chat/route.ts",
+    "frontend/src/app/api/chat/route.test.ts"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "a mode option is selected in the UI",
+      "when": "a prompt is submitted",
+      "then": "the request body contains the selected mode value from a typed enum (`embedded|vector|hybrid`)"
+    },
+    {
+      "if": "no explicit mode is selected",
+      "when": "the first prompt is submitted",
+      "then": "a documented default mode is used and sent to backend"
+    },
+    {
+      "if": "the backend returns mode-specific metadata",
+      "when": "integration-demo renders the assistant response",
+      "then": "mode badges/labels and citation sections remain consistent with the structured response UI contract"
+    },
+    {
+      "if": "the backend returns an unsupported mode value",
+      "when": "mode parsing runs through schema validation",
+      "then": "frontend falls back to safe default behavior and logs non-fatal diagnostic metadata"
+    },
+    {
+      "if": "a verifier or fixer agent event appears in optional metadata",
+      "when": "agent-event renderer processes the event list",
+      "then": "known agent event cards are rendered with mono formatting for tool output segments"
+    },
+    {
+      "if": "an unknown future agent event type is received",
+      "when": "the same renderer processes events",
+      "then": "the UI shows a generic event block without interrupting normal chat rendering"
+    }
+  ],
+  "test_plan": {
+    "tdd_sequence": [
+      "Write failing unit tests for retrieval mode enum contract and event-type normalization.",
+      "Write failing component tests for selector behavior and payload propagation from integration demo.",
+      "Write failing backend integration tests around `/api/chat` payload forwarding and mode-aware responses.",
+      "Implement mode selector, routing, and event rendering until tests pass, then run Playwright manual checks."
+    ],
+    "unit_tests": [
+      "Mode contract accepts only `embedded|vector|hybrid` and emits default mode when missing.",
+      "Agent event renderer maps verifier/fixer events and falls back safely for unknown types."
+    ],
+    "integration_tests": [
+      "Integration demo submits selected mode and route test asserts mode is forwarded in backend request contract.",
+      "Mode-specific mocked backend payloads render expected UI labels/citations without parser regressions."
+    ],
+    "playwright_manual_validation": [
+      {
+        "id": "PW-MODE-001",
+        "step": "Switch between `embedded`, `vector`, and `hybrid` modes and submit the same prompt each time.",
+        "expected": "Each request uses the selected mode and the resulting response displays the correct mode context."
+      },
+      {
+        "id": "PW-MODE-002",
+        "step": "Run a scenario that emits verifier/fixer metadata in the assistant payload.",
+        "expected": "Agent event UI renders specialized cards while normal chat messages remain intact."
+      },
+      {
+        "id": "PW-MODE-003",
+        "step": "Trigger an unknown event type using a controlled fixture payload.",
+        "expected": "UI degrades gracefully with a generic block and no runtime errors."
+      }
+    ]
+  },
+  "status_lifecycle": ["todo", "review", "done"],
+  "status": "todo",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "pending",
+    "verdict": "pending",
+    "notes": ["Pending implementation and subagent review."]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T14:39:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Created planning spec for mode selector integration and backend mode routing contract."
+    },
+    {
+      "timestamp": "2026-02-17T14:43:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Defined extensibility requirements for verifier/fixer agent events with forward-compatible fallback behavior."
+    },
+    {
+      "timestamp": "2026-02-17T14:46:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Added TDD unit/integration/manual Playwright criteria and left task in todo with pending review placeholders."
+    }
+  ]
+}

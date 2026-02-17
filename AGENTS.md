@@ -39,3 +39,5 @@
 - Keep AGENTS files as high-signal operating memory only.
 - Store detailed technical explanations in `docs/` with citations.
 - Store architectural decisions in `adrs/` with alternatives considered.
+- For coupled frontend/backend specs, maintain one canonical request/response contract.
+- Validate enum values and required fields stay in parity before marking planning tasks ready.
