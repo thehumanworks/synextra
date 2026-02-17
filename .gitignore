@@ -1,0 +1,64 @@
+.env
+__pycache__
+backend/.env
+backend/.venv
+*.ruff-cache
+.DS_Store
+*.egg-info
+node_modules
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/.coverage
+
+# Node / Frontend
+node_modules/
+.next/
+.npm/
+.pnpm-store/
+coverage/
+dist/
+build/
+frontend/.next/
+frontend/node_modules/
+frontend/.turbo/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Buck / tooling
+buck-out/
+.buckd/
+.buckroot
+.buck-version
+
+# Environment and local config
+.env.*
+.env.local
+.env.*.local
+
+# Editors & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store?
+.AppleDouble
+.Spotlight-V100
+.Trashes
+.project
+.history

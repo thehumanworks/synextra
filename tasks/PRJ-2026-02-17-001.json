@@ -1,0 +1,124 @@
+{
+  "task_id": "project-rag-spec-2026-02-17-001",
+  "feature_branch": "feature/project/rag-spec-orchestration",
+  "description": "Define end-to-end implementation specs for Synextra PDF ingestion, dual retrieval stores, GPT-5.2 agent orchestration with cited structured outputs, and dark-mode UI rendering with backend/frontend integration quality gates.",
+  "adr_references": [
+    "adrs/0001-rag-spec-orchestration.md",
+    "backend/adrs/0002-pdf-ingestion-and-chunking.md",
+    "backend/adrs/0003-dual-store-retrieval-and-agent-orchestration.md",
+    "frontend/adrs/0002-dark-theme-typography-design-system.md",
+    "frontend/adrs/0003-structured-chat-rendering-and-mode-routing.md"
+  ],
+  "bdd_flows": [
+    {
+      "title": "Embedded mode grounded QA",
+      "given": "a PDF has been chunked and stored in the embedded store",
+      "when": "a user asks a question in embedded mode",
+      "then": "the agent uses BM25 retrieval and returns structured JSON with answer text and citations"
+    },
+    {
+      "title": "Vector mode grounded QA",
+      "given": "a PDF has been chunked and uploaded to an OpenAI vector store",
+      "when": "a user asks a question in vector mode",
+      "then": "the agent uses OpenAI file search and returns structured JSON with answer text and citations"
+    },
+    {
+      "title": "Session-aware multi-turn QA",
+      "given": "a user has an active session with prior messages",
+      "when": "the user asks a follow-up question",
+      "then": "the agent uses conversation history and may perform multiple retrieval tool calls before producing a cited response"
+    },
+    {
+      "title": "Frontend rendering contract",
+      "given": "the backend returns structured JSON output",
+      "when": "the frontend receives the response",
+      "then": "the UI renders chat bubbles, citations, and tool-call details in the dark no-border design language"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "PyMuPDF",
+      "repository": "https://github.com/pymupdf/PyMuPDF",
+      "purpose": "PDF parsing and block extraction"
+    },
+    {
+      "name": "FastAPI",
+      "repository": "https://github.com/fastapi/fastapi",
+      "purpose": "backend API routes and dependency injection"
+    },
+    {
+      "name": "OpenAI Python SDK",
+      "repository": "https://github.com/openai/openai-python",
+      "purpose": "agent, structured outputs, and vector store integration"
+    },
+    {
+      "name": "Vercel AI SDK",
+      "repository": "https://github.com/vercel/ai",
+      "purpose": "frontend/backend AI streaming integration primitives"
+    },
+    {
+      "name": "Playwright",
+      "repository": "https://github.com/microsoft/playwright",
+      "purpose": "manual browser flow verification and integration validation"
+    }
+  ],
+  "target_files": [
+    "backend/tasks/BE-2026-02-17-002.json",
+    "backend/tasks/BE-2026-02-17-003.json",
+    "backend/tasks/BE-2026-02-17-004.json",
+    "frontend/tasks/FE-2026-02-17-002.json",
+    "frontend/tasks/FE-2026-02-17-003.json",
+    "frontend/tasks/FE-2026-02-17-004.json"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "the parser receives a valid PDF",
+      "when": "the ingestion endpoint is called",
+      "then": "chunk metadata and normalized text are returned without import-time side effects"
+    },
+    {
+      "if": "embedded mode is selected",
+      "when": "the user sends a question",
+      "then": "the BM25 retrieval tool is used and citations map to stored chunks"
+    },
+    {
+      "if": "vector mode is selected",
+      "when": "the user sends a question",
+      "then": "the OpenAI file-search tool is used and citations map to vector-store chunks"
+    },
+    {
+      "if": "the backend returns malformed structured JSON",
+      "when": "the frontend parses the response",
+      "then": "the UI shows a recoverable error state instead of crashing"
+    },
+    {
+      "if": "a full stack QA run uses 1706.03762v7.pdf",
+      "when": "an integration suite and Playwright manual checks execute",
+      "then": "answers are grounded with citations and UI rendering remains stable"
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "todo",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "pending",
+    "verdict": "pending",
+    "notes": []
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T14:05:00Z",
+      "actor": "codex",
+      "entry": "Initialized monorepo-level specification task and linked planned backend/frontend ADRs and task specs."
+    },
+    {
+      "timestamp": "2026-02-17T14:09:00Z",
+      "actor": "codex",
+      "entry": "Defined cross-cutting BDD flows and integration test expectations, including QA validation with 1706.03762v7.pdf and Playwright manual review."
+    }
+  ]
+}

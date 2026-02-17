@@ -1,0 +1,155 @@
+{
+  "task_id": "frontend-bootstrap-001",
+  "feature_branch": "feature/frontend/bootstrap-next16",
+  "description": "Bootstrap the frontend module with Next.js 16 + React 19, Tailwind CSS, Motion, shadcn-style component primitives, and Vercel AI SDK scaffold.",
+  "bdd_flows": [
+    {
+      "title": "Animated integration dashboard renders",
+      "given": "the frontend app is running",
+      "when": "a user opens the root page",
+      "then": "the page renders motion-animated blocks and shadcn-style UI primitives"
+    },
+    {
+      "title": "Chat scaffold responds",
+      "given": "the API route is available",
+      "when": "a user submits a prompt in the integration demo",
+      "then": "a streamed scaffold response is rendered in the message list"
+    },
+    {
+      "title": "AI element message rendering",
+      "given": "AI integration UI components are rendered",
+      "when": "a message is emitted by the chat stream",
+      "then": "the message is rendered through an AI Elements-style message component"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "next",
+      "repository": "https://github.com/vercel/next.js",
+      "purpose": "React framework and app routing"
+    },
+    {
+      "name": "react",
+      "repository": "https://github.com/facebook/react",
+      "purpose": "UI runtime"
+    },
+    {
+      "name": "motion",
+      "repository": "https://github.com/motiondivision/motion",
+      "purpose": "animation primitives"
+    },
+    {
+      "name": "shadcn-ui",
+      "repository": "https://github.com/shadcn-ui/ui",
+      "purpose": "component pattern baseline"
+    },
+    {
+      "name": "ai-sdk",
+      "repository": "https://github.com/vercel/ai",
+      "purpose": "AI UI hooks and streaming helpers"
+    }
+  ],
+  "target_files": [
+    "frontend/package.json",
+    "frontend/src/app/page.tsx",
+    "frontend/src/components/integration-demo.tsx",
+    "frontend/src/components/integration-demo.test.tsx",
+    "frontend/src/components/ai-elements/message-bubble.tsx",
+    "frontend/src/components/ai-elements/message-bubble.test.tsx",
+    "frontend/src/components/ui/button.tsx",
+    "frontend/src/components/ui/button.test.tsx",
+    "frontend/src/app/api/chat/route.ts",
+    "frontend/src/app/api/chat/route.test.ts",
+    "frontend/src/lib/utils.ts",
+    "frontend/src/lib/utils.test.ts"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "the class utility receives conflicting Tailwind classes",
+      "when": "cn('px-2', 'px-4') is executed",
+      "then": "the merged output keeps only the final class"
+    },
+    {
+      "if": "a shadcn-style button is rendered",
+      "when": "the component receives variant and size props",
+      "then": "the rendered element includes matching style classes"
+    },
+    {
+      "if": "the UI is shown before chat interaction",
+      "when": "a user opens the root page",
+      "then": "the page still renders correctly with an empty message list"
+    },
+    {
+      "if": "a non-standard message role is provided",
+      "when": "AiMessageBubble renders role=\"tool\"",
+      "then": "the message bubble renders without crashing"
+    },
+    {
+      "if": "messages are mixed across user and assistant roles",
+      "when": "getLatestUserPrompt is evaluated",
+      "then": "the latest user text is extracted and normalized"
+    },
+    {
+      "if": "a user submits only whitespace in the integration form",
+      "when": "the form submit handler runs",
+      "then": "sendMessage is not called"
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer:019c6ba0-552e-70c1-aaa9-cd03431a5723",
+    "verdict": "approved_after_fixes",
+    "notes": [
+      "Finding: integration demo and /api/chat route lacked tests; added Vitest coverage for demo behavior and prompt extraction/route fallback.",
+      "Finding: icon button variant used invalid Tailwind class size-10; replaced with h-10 w-10 p-0 and kept component tests."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T12:30:00Z",
+      "actor": "frontend-agent",
+      "entry": "Task picked up and set to todo before implementation."
+    },
+    {
+      "timestamp": "2026-02-17T12:34:00Z",
+      "actor": "frontend-agent",
+      "entry": "Researched dependency versions and compatibility for Next.js, React, Motion, and AI SDK before implementation."
+    },
+    {
+      "timestamp": "2026-02-17T12:47:00Z",
+      "actor": "frontend-agent",
+      "entry": "Implemented scaffold, process docs, ADR, and baseline integration components."
+    },
+    {
+      "timestamp": "2026-02-17T12:56:00Z",
+      "actor": "frontend-agent",
+      "entry": "Ran lint/build and moved task status to review pending subagent review."
+    },
+    {
+      "timestamp": "2026-02-17T13:10:00Z",
+      "actor": "codex",
+      "entry": "Aligned task schema with required JSON contract and added Vitest-based positive/negative/edge test harness."
+    },
+    {
+      "timestamp": "2026-02-17T13:14:00Z",
+      "actor": "codex",
+      "entry": "Added AI Elements-style message component and tests to strengthen frontend AI integration baseline."
+    },
+    {
+      "timestamp": "2026-02-17T13:20:00Z",
+      "actor": "codex",
+      "entry": "Addressed subagent review findings by adding integration-demo and route tests plus fixing icon button size classes."
+    },
+    {
+      "timestamp": "2026-02-17T13:24:00Z",
+      "actor": "codex",
+      "entry": "Validated lint/test/typecheck/build and workspace check, then moved task status to done."
+    }
+  ]
+}

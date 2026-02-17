@@ -1,0 +1,149 @@
+{
+  "task_id": "FE-2026-02-17-002",
+  "feature_branch": "feature/spec-frontend-rag",
+  "description": "Redesign the RAG chat experience into a dark-mode-first UI with black backgrounds, borderless surfaces, stone-gradient title styling, and an extensible typography system in Tailwind global tokens.",
+  "related_adrs": ["frontend/adrs/0002-dark-theme-typography-design-system.md"],
+  "bdd_flows": [
+    {
+      "title": "Dark shell and borderless surfaces render globally",
+      "given": "the frontend app loads the chat shell",
+      "when": "the root page renders",
+      "then": "all major containers use the dark token palette with no visible border utilities"
+    },
+    {
+      "title": "Stone gradient heading style is applied",
+      "given": "the chat page hero/title section renders",
+      "when": "the heading text is displayed",
+      "then": "the title uses the serif display family with gradient stone text treatment"
+    },
+    {
+      "title": "Typography hierarchy remains consistent across message types",
+      "given": "chat messages include prose and tool/code output",
+      "when": "messages are rendered in the conversation stream",
+      "then": "body copy uses the selected sans family and tool/code output uses JetBrains Mono"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "next",
+      "repository": "https://github.com/vercel/next.js",
+      "purpose": "Next/font integration and app shell rendering"
+    },
+    {
+      "name": "tailwindcss",
+      "repository": "https://github.com/tailwindlabs/tailwindcss",
+      "purpose": "global design tokens and utility-based styling"
+    },
+    {
+      "name": "react",
+      "repository": "https://github.com/facebook/react",
+      "purpose": "component rendering runtime"
+    },
+    {
+      "name": "playwright",
+      "repository": "https://github.com/microsoft/playwright",
+      "purpose": "manual UI validation checklist execution"
+    }
+  ],
+  "target_files": [
+    "frontend/src/app/globals.css",
+    "frontend/src/app/layout.tsx",
+    "frontend/src/app/page.tsx",
+    "frontend/src/components/integration-demo.tsx",
+    "frontend/src/components/integration-demo.test.tsx",
+    "frontend/src/components/ai-elements/message-bubble.tsx",
+    "frontend/src/components/ai-elements/message-bubble.test.tsx",
+    "frontend/src/lib/design-system/tokens.ts",
+    "frontend/src/lib/design-system/tokens.test.ts"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "the app root is rendered in a test DOM",
+      "when": "global classes are inspected",
+      "then": "the root and shell use black-background tokens and no border classes are present"
+    },
+    {
+      "if": "a heading contains emphasized words",
+      "when": "the heading component renders",
+      "then": "serif italic emphasis styles are applied without affecting body typography"
+    },
+    {
+      "if": "assistant chat text is rendered",
+      "when": "a standard prose message bubble mounts",
+      "then": "the uncommon sans body font class is applied consistently"
+    },
+    {
+      "if": "tool output includes code snippets",
+      "when": "a tool/code block message renders",
+      "then": "JetBrains Mono classes are applied to the code region only"
+    },
+    {
+      "if": "legacy component classes still include border utilities",
+      "when": "the design-system token helper is applied",
+      "then": "border utilities are removed or replaced with shadow/contrast alternatives"
+    },
+    {
+      "if": "the viewport is reduced to mobile width",
+      "when": "the same typography stack is rendered",
+      "then": "font scaling preserves readability without reintroducing borders"
+    }
+  ],
+  "test_plan": {
+    "tdd_sequence": [
+      "Write failing unit tests for tokenized class assignment and typography class composition.",
+      "Write failing component tests for heading/body/code font application in chat UI components.",
+      "Write failing integration tests that mount the chat shell with mocked backend responses to verify style consistency.",
+      "Implement styling/token updates until all tests pass, then execute Playwright manual checklist."
+    ],
+    "unit_tests": [
+      "Token helper returns dark-mode class set and excludes border classes.",
+      "Typography mapper assigns serif display, sans body, and mono code styles by semantic role."
+    ],
+    "integration_tests": [
+      "Integration demo renders mocked backend response while preserving dark shell classes and typography hierarchy.",
+      "Chat stream containing prose + tool output preserves sans/mono split without visual regression in DOM class snapshots."
+    ],
+    "playwright_manual_validation": [
+      {
+        "id": "PW-UI-001",
+        "step": "Open the root page at desktop width and inspect main panels/messages.",
+        "expected": "Background is black, surfaces are borderless, and content separation relies on spacing/contrast."
+      },
+      {
+        "id": "PW-UI-002",
+        "step": "Submit a prompt that yields prose and tool/code output.",
+        "expected": "Heading remains stone-gradient serif, chat body remains sans, and code/tool output uses JetBrains Mono."
+      },
+      {
+        "id": "PW-UI-003",
+        "step": "Repeat validation on mobile viewport (390x844).",
+        "expected": "Typography remains legible and no border utilities appear in primary chat surfaces."
+      }
+    ]
+  },
+  "status_lifecycle": ["todo", "review", "done"],
+  "status": "todo",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "pending",
+    "verdict": "pending",
+    "notes": ["Pending implementation and subagent review."]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T14:18:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Created planning-only spec for dark-theme redesign and aligned required schema keys from frontend/AGENTS.md."
+    },
+    {
+      "timestamp": "2026-02-17T14:23:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Added TDD-first test plan with unit, backend-integration, and Playwright manual validation requirements."
+    },
+    {
+      "timestamp": "2026-02-17T14:27:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Linked task to ADR 0002 and left status at todo with pending subagent review placeholders."
+    }
+  ]
+}
