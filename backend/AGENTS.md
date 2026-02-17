@@ -17,6 +17,13 @@
 - Keep style and quality aligned with PEP guidance and strict linting/type checks.
 - `AGENTS.md` is organizational memory, not a changelog.
 
+## Buck2 Validation Discipline
+- If `backend/pyproject.toml` or `backend/uv.lock` changes, run `buck2 run //:backend-install` (or `buck2 run //:install`) before lint/test/typecheck.
+- If `.buckconfig`, `BUCK`, or `tools/buck/*.sh` changes during backend work, rerun `buck2 run //:check` before task completion.
+- For unexplained Buck regressions after config/dependency edits, run `buck2 clean`, then `buck2 run //:install`, then `buck2 run //:check`.
+- Prefer `buck2 run //:dev` for local full-stack development instead of running backend/frontend manually in separate shells.
+- When logging setup or infra failures in task `execution_log`, include `buck2 --version`, Python runtime version, and Node runtime version for reproducibility.
+
 ## Documentation and Architecture
 - Write deeper technical documentation in `backend/docs/` with citations.
 - Write architectural decisions in `backend/adrs/`.
