@@ -7,7 +7,7 @@ Keeping this wrapper preserves the expected import path while allowing the
 service layer to depend on repository abstractions.
 """
 
-from synextra_backend.repositories.rag_document_repository import (  # noqa: F401
+from synextra_backend.repositories.rag_document_repository import (
     ChunkRecord,
     DocumentRecord,
     EmbeddedPersistenceRecord,

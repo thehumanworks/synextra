@@ -5,6 +5,8 @@ import os
 import time
 from io import BytesIO
 
+from openai import OpenAI
+
 from synextra_backend.repositories.rag_document_repository import RagDocumentRepository
 
 
@@ -54,11 +56,6 @@ class OpenAIVectorStorePersistence:
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY is not configured")
 
-        try:
-            from openai import OpenAI  # type: ignore
-        except Exception as exc:  # pragma: no cover
-            raise RuntimeError("OpenAI SDK is not installed") from exc
-
         client = OpenAI()
 
         vector_store = client.vector_stores.create(
@@ -89,7 +86,6 @@ class OpenAIVectorStorePersistence:
                 }
             )
 
-        # Attach files to vector store with attributes and poll for completion.
         client.vector_stores.file_batches.create_and_poll(
             vector_store_id=vector_store_id,
             files=file_objects,

@@ -33,13 +33,13 @@ async def test_rag_ingestion_persistence_and_chat(client: AsyncClient) -> None:
 
     chat = await client.post(
         f"/v1/rag/sessions/test-session/messages",
-        json={"prompt": "What is the Transformer model described in the paper?", "retrieval_mode": "embedded"},
+        json={"prompt": "What is the Transformer model described in the paper?", "retrieval_mode": "hybrid"},
     )
 
     assert chat.status_code == 200
     chat_body = chat.json()
     assert chat_body["session_id"] == "test-session"
-    assert chat_body["mode"] == "embedded"
+    assert chat_body["mode"] == "hybrid"
     assert isinstance(chat_body["answer"], str)
     assert isinstance(chat_body["citations"], list)
 

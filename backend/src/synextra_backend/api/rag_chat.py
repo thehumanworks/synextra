@@ -33,7 +33,11 @@ def build_rag_chat_router() -> APIRouter:
         orchestrator: RagAgentOrchestrator = Depends(_get_orchestrator),
     ) -> RagChatResponse:
         try:
-            return await orchestrator.handle_message(session_id=session_id, request=request)
+            hybrid_request = request.model_copy(update={"retrieval_mode": "hybrid"})
+            return await orchestrator.handle_message(
+                session_id=session_id,
+                request=hybrid_request,
+            )
         except Exception as exc:  # pragma: no cover
             payload = error_response(
                 code="chat_failed",

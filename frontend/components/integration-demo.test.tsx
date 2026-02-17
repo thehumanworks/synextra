@@ -25,13 +25,13 @@ describe("IntegrationDemo", () => {
             filename: "paper.pdf",
             page_count: 4,
             chunk_count: 12,
-            requested_mode: "embedded",
-            effective_mode: "embedded",
+            requested_mode: "hybrid",
+            effective_mode: "hybrid",
             ready_for_chat: true,
             stages: {
               ingestion: { status: "ok" },
               embedded: { status: "ok", indexed_chunk_count: 12 },
-              vector: { status: "skipped" },
+              vector: { status: "ok", vector_store_id: "vs_123" },
             },
           }),
           { status: 200, headers: { "content-type": "application/json" } },
@@ -66,8 +66,10 @@ describe("IntegrationDemo", () => {
       expect(screen.getByText(/Ready for chat/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Your message/i)).toBeEnabled();
     });
+    expect(screen.queryByRole("option", { name: /minimal/i })).not.toBeInTheDocument();
 
     const textarea = screen.getByLabelText(/Your message/i);
+    await user.selectOptions(screen.getByLabelText(/Reasoning effort/i), "high");
     await user.clear(textarea);
     await user.type(textarea, "  hello  ");
 
@@ -79,12 +81,13 @@ describe("IntegrationDemo", () => {
     expect(uploadCall[0]).toBe("/api/rag/upload");
 
     const uploadForm = (uploadCall[1] as RequestInit).body as FormData;
-    expect(uploadForm.get("retrieval_mode")).toBe("embedded");
+    expect(uploadForm.get("retrieval_mode")).toBe("hybrid");
 
     const [, init] = fetchMock.mock.calls[1];
     const forwarded = JSON.parse((init as RequestInit).body as string);
     expect(forwarded.prompt).toBe("hello");
-    expect(forwarded.retrieval_mode).toBe("embedded");
+    expect(forwarded.retrieval_mode).toBe("hybrid");
+    expect(forwarded.reasoning_effort).toBe("high");
     expect(typeof forwarded.session_id).toBe("string");
 
     expect(await screen.findByText(/assistant reply/i)).toBeInTheDocument();
@@ -133,7 +136,7 @@ describe("IntegrationDemo", () => {
     vi.unstubAllGlobals();
   });
 
-  it("switches to embedded mode when vector persistence falls back", async () => {
+  it("keeps hybrid mode when vector persistence falls back", async () => {
     const user = userEvent.setup();
 
     const fetchMock = vi
@@ -145,11 +148,11 @@ describe("IntegrationDemo", () => {
             filename: "paper.pdf",
             page_count: 3,
             chunk_count: 8,
-            requested_mode: "vector",
-            effective_mode: "embedded",
+            requested_mode: "hybrid",
+            effective_mode: "hybrid",
             ready_for_chat: true,
             warning:
-              "Vector persistence failed. Falling back to embedded BM25 retrieval.",
+              "Vector persistence failed. Continuing in hybrid mode with BM25 fallback.",
             stages: {
               ingestion: { status: "ok" },
               embedded: { status: "ok", indexed_chunk_count: 8 },
@@ -176,7 +179,6 @@ describe("IntegrationDemo", () => {
 
     render(<IntegrationDemo />);
 
-    await user.click(screen.getByRole("button", { name: "Vector" }));
     await user.upload(
       screen.getByLabelText(/PDF file/i),
       new File([new Uint8Array([37, 80, 68, 70])], "paper.pdf", {
@@ -194,7 +196,7 @@ describe("IntegrationDemo", () => {
 
     const [, init] = fetchMock.mock.calls[1];
     const forwarded = JSON.parse((init as RequestInit).body as string);
-    expect(forwarded.retrieval_mode).toBe("embedded");
+    expect(forwarded.retrieval_mode).toBe("hybrid");
 
     vi.unstubAllGlobals();
   });

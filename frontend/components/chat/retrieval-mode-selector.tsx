@@ -15,7 +15,7 @@ export function RetrievalModeSelector({
   onChange: (next: RetrievalMode) => void;
   disabled?: boolean;
 }) {
-  const options: RetrievalMode[] = ["embedded", "vector"];
+  const options: RetrievalMode[] = ["hybrid"];
 
   return (
     <div className="flex flex-col gap-2" data-testid="retrieval-mode-selector">
@@ -24,7 +24,7 @@ export function RetrievalModeSelector({
       </div>
       <div
         className={cn(
-          "grid grid-cols-2",
+          "grid grid-cols-1",
           "rounded-2xl bg-white/5 p-1",
           "ring-1 ring-white/10"
         )}
@@ -54,16 +54,9 @@ export function RetrievalModeSelector({
         })}
       </div>
       <div className="text-xs text-muted-foreground">
-        {value === "embedded" ? (
-          <span>
-            Local BM25 search over ingested chunks.
-          </span>
-        ) : null}
-        {value === "vector" ? (
-          <span>
-            OpenAI vector store retrieval (falls back if unavailable).
-          </span>
-        ) : null}
+        <span>
+          Hybrid retrieval combines BM25 search with OpenAI vector store search.
+        </span>
       </div>
     </div>
   );

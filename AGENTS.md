@@ -51,5 +51,10 @@
 - Citation dedupe keyed only by `document_id` + `chunk_id` does not collapse overlap-heavy chunking output; dedupe by normalized span/text if repeated citation cards become noisy.
 - For `_simple_summary` outputs, normalize internal whitespace before joining sentences to avoid newline-heavy token dumps from retrieval chunks.
 - For repeated near-duplicate citations, fingerprint normalized supporting quotes (prefix-based) rather than relying on chunk ids alone.
+- Current PDF chunking defaults are `token_target=700` and `overlap_tokens=120`; ingestion uses `chunk_pdf_blocks` without runtime overrides.
+- Vector persistence uploads one file per stored chunk, while synthesis context uses `supporting_quote` truncated to 240 chars per citation; tune chunk size with that quote window in mind.
 - OpenAI answer synthesis is not gated by `SYNEXTRA_USE_OPENAI_CHAT`; it is attempted whenever `OPENAI_API_KEY` is present, with local summary fallback on missing key/SDK/error.
 - For Responses API migration, prefer native `instructions` + `input` fields over chat-style role arrays when no multi-item context object is required.
+- For GPT-5.2 reasoning controls in Responses API, pass `reasoning={"effort": ...}`; supported values are `none|low|medium|high|xhigh` (`minimal` is not listed for GPT-5.2), and model default is `none` when omitted.
+- Hybrid-first RAG policy: treat upload persistence as hybrid-only (always persist BM25 + vector store when possible) and force chat retrieval mode to `hybrid`; recoverable vector persistence failures should keep chat available with BM25 fallback plus warning.
+- `_call_agent` in `rag_agent_orchestrator` is synchronous; do not `await` it or the exception path can silently degrade to `_simple_summary`.

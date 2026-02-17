@@ -29,6 +29,7 @@ describe("/api/chat POST", () => {
         session_id: "s",
         prompt: "hello",
         retrieval_mode: "hybrid",
+        reasoning_effort: "high",
       }),
     });
 
@@ -46,6 +47,7 @@ describe("/api/chat POST", () => {
     const forwarded = JSON.parse(String(init.body ?? "{}"));
     expect(forwarded.prompt).toBe("hello");
     expect(forwarded.retrieval_mode).toBe("hybrid");
+    expect(forwarded.reasoning_effort).toBe("high");
 
     vi.unstubAllGlobals();
   });
@@ -62,5 +64,45 @@ describe("/api/chat POST", () => {
     const text = await res.text();
     expect(text).toContain("\"answer\"");
     expect(() => JSON.parse(text)).toThrow();
+  });
+
+  it("falls back reasoning_effort to medium when unsupported for gpt-5.2", async () => {
+    process.env.SYNEXTRA_BACKEND_URL = "http://backend";
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          session_id: "s",
+          mode: "hybrid",
+          answer: "ok",
+          tools_used: ["bm25"],
+          citations: [],
+          agent_events: [],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const req = new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        session_id: "s",
+        prompt: "hello",
+        retrieval_mode: "embedded",
+        reasoning_effort: "minimal",
+      }),
+    });
+
+    await POST(req);
+
+    const [, rawInit] = fetchMock.mock.calls[0];
+    const init = (rawInit ?? {}) as RequestInit;
+    const forwarded = JSON.parse(String(init.body ?? "{}"));
+    expect(forwarded.retrieval_mode).toBe("hybrid");
+    expect(forwarded.reasoning_effort).toBe("medium");
+
+    vi.unstubAllGlobals();
   });
 });

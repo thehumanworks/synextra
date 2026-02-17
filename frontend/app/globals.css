@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
+@import "streamdown/styles.css";
+@source "../node_modules/streamdown/dist/*.js";
 
 :root {
   /* Dark-mode-first tokens */

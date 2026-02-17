@@ -30,7 +30,7 @@ describe("parseStructuredResponse", () => {
       citations: [],
     });
 
-    expect(parsed.mode).toBe("embedded");
+    expect(parsed.mode).toBe("hybrid");
     expect(parsed.parseMeta.usedModeFallback).toBe(true);
 
     warn.mockRestore();
@@ -57,5 +57,29 @@ describe("parseStructuredResponse", () => {
     expect(parsed.mode).toBe("hybrid");
     expect(parsed.citations).toHaveLength(1);
     expect(parsed.citations[0].document_id).toBe("d");
+  });
+
+  it("accepts citation link metadata when present", () => {
+    const parsed = parseStructuredResponse({
+      session_id: "s",
+      mode: "embedded",
+      answer: "hello",
+      citations: [
+        {
+          document_id: "d",
+          chunk_id: "c",
+          page_number: 1,
+          supporting_quote: "quote",
+          source_tool: "bm25",
+          title: "Transformer paper",
+          url: "https://example.com/transformer",
+        },
+      ],
+    });
+
+    expect(parsed.parseMeta.ok).toBe(true);
+    expect(parsed.citations).toHaveLength(1);
+    expect(parsed.citations[0].title).toBe("Transformer paper");
+    expect(parsed.citations[0].url).toBe("https://example.com/transformer");
   });
 });

@@ -14,6 +14,9 @@ export const CitationSchema = z
     supporting_quote: z.string().min(1),
     source_tool: z.string().min(1).default("unknown"),
     score: z.number().nullable().optional(),
+    title: z.string().min(1).optional(),
+    url: z.string().min(1).optional(),
+    href: z.string().min(1).optional(),
   })
   .strict();
 

@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 RetrievalMode = Literal["embedded", "vector", "hybrid"]
+ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh"]
 
 
 class RagCitation(BaseModel):
@@ -32,7 +33,8 @@ class RagChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     prompt: str = Field(..., min_length=1)
-    retrieval_mode: RetrievalMode = "embedded"
+    retrieval_mode: RetrievalMode = "hybrid"
+    reasoning_effort: ReasoningEffort = "medium"
 
 
 class RagChatResponse(BaseModel):

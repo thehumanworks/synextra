@@ -1,4 +1,5 @@
-import { coerceRetrievalMode, DEFAULT_RETRIEVAL_MODE } from "@/lib/chat/mode-contract";
+import { type RetrievalMode } from "@/lib/chat/mode-contract";
+import { coerceReasoningEffort } from "@/lib/chat/reasoning-contract";
 
 function newSessionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
 
   if (body?.dev_malformed) {
     // Intentionally broken payload to exercise client-side fallback paths.
-    return new Response("{\"mode\":\"embedded\",\"answer\":\"oops\"", {
+    return new Response("{\"mode\":\"hybrid\",\"answer\":\"oops\"", {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -28,8 +29,9 @@ export async function POST(req: Request) {
       ? body.prompt
       : "";
 
-  const modeInput = body?.retrieval_mode;
-  const mode = coerceRetrievalMode(modeInput).mode;
+  const mode: RetrievalMode = "hybrid";
+  const reasoningEffortInput = body?.reasoning_effort;
+  const reasoningEffort = coerceReasoningEffort(reasoningEffortInput).effort;
 
   if (!prompt) {
     return new Response(
@@ -60,6 +62,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         prompt,
         retrieval_mode: mode,
+        reasoning_effort: reasoningEffort,
       }),
     });
 
@@ -82,7 +85,8 @@ export async function POST(req: Request) {
     return new Response(
       JSON.stringify({
         session_id: sessionId,
-        mode: mode ?? DEFAULT_RETRIEVAL_MODE,
+        mode,
+        reasoning_effort: reasoningEffort,
         answer:
           "Backend unavailable in this environment. This is a local fallback response.\n\n" +
           `Details: ${message}`,

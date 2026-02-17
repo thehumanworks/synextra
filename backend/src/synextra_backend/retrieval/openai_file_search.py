@@ -20,7 +20,13 @@ class OpenAIFileSearch:
 
         self._client = OpenAI()
 
-    def search(self, *, vector_store_ids: list[str], query: str, top_k: int = 6) -> list[EvidenceChunk]:
+    def search(
+        self,
+        *,
+        vector_store_ids: list[str],
+        query: str,
+        top_k: int = 6,
+    ) -> list[EvidenceChunk]:
         """Search a set of vector stores for relevant content."""
 
         if not vector_store_ids:
@@ -51,7 +57,11 @@ class OpenAIFileSearch:
                 content_segments = getattr(item, "content", []) or []
                 text = ""
                 for segment in content_segments:
-                    segment_text = getattr(segment, "text", None) or segment.get("text") if isinstance(segment, dict) else None
+                    segment_text = None
+                    if isinstance(segment, dict):
+                        segment_text = segment.get("text")
+                    else:
+                        segment_text = getattr(segment, "text", None)
                     if segment_text:
                         text = str(segment_text)
                         break

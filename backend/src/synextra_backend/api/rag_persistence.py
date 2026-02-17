@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
@@ -45,8 +47,8 @@ def build_rag_persistence_router() -> APIRouter:
     )
     async def persist_embedded(
         document_id: str,
-        repository: RagDocumentRepository = Depends(_get_repository),
-        persistence: EmbeddedStorePersistence = Depends(_get_embedded_persistence),
+        repository: Annotated[RagDocumentRepository, Depends(_get_repository)],
+        persistence: Annotated[EmbeddedStorePersistence, Depends(_get_embedded_persistence)],
     ) -> RagPersistenceResponse:
         document = repository.get_document(document_id)
         if document is None:
@@ -78,8 +80,8 @@ def build_rag_persistence_router() -> APIRouter:
     )
     async def persist_vector_store(
         document_id: str,
-        repository: RagDocumentRepository = Depends(_get_repository),
-        persistence: OpenAIVectorStorePersistence = Depends(_get_vector_persistence),
+        repository: Annotated[RagDocumentRepository, Depends(_get_repository)],
+        persistence: Annotated[OpenAIVectorStorePersistence, Depends(_get_vector_persistence)],
     ) -> RagPersistenceResponse:
         document = repository.get_document(document_id)
         if document is None:
@@ -91,7 +93,9 @@ def build_rag_persistence_router() -> APIRouter:
             return JSONResponse(status_code=404, content=payload.model_dump())
 
         try:
-            duration_ms, _signature, vector_store_id, file_ids = persistence.persist(document_id=document_id)
+            duration_ms, _signature, vector_store_id, file_ids = persistence.persist(
+                document_id=document_id
+            )
         except Exception as exc:
             payload = error_response(
                 code="vector_store_persist_failed",

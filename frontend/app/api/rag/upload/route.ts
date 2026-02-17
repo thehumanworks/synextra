@@ -1,4 +1,4 @@
-type UploadMode = "embedded" | "vector";
+type UploadMode = "hybrid";
 
 type BackendFailure = {
   code: string;
@@ -11,10 +11,6 @@ function backendBaseUrl() {
     /\/$/,
     "",
   );
-}
-
-function readUploadMode(value: FormDataEntryValue | null): UploadMode {
-  return value === "vector" ? "vector" : "embedded";
 }
 
 function toJsonResponse(body: unknown, status = 200) {
@@ -54,7 +50,7 @@ function parseBackendFailure(raw: unknown): BackendFailure | null {
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
   if (!value || typeof value === "string") return false;
-  return typeof (value as File).arrayBuffer === "function";
+  return typeof value.arrayBuffer === "function";
 }
 
 export async function POST(req: Request) {
@@ -86,7 +82,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const requestedMode = readUploadMode(incoming.get("retrieval_mode"));
+  const requestedMode: UploadMode = "hybrid";
   const backend = backendBaseUrl();
 
   const uploadForm = new FormData();
@@ -102,7 +98,8 @@ export async function POST(req: Request) {
     return new Response(serializeBody(ingestBody), {
       status: ingestRes.status,
       headers: {
-        "content-type": ingestRes.headers.get("content-type") ?? "application/json",
+        "content-type":
+          ingestRes.headers.get("content-type") ?? "application/json",
       },
     });
   }
@@ -170,23 +167,13 @@ export async function POST(req: Request) {
         indexed_chunk_count:
           embeddedBody &&
           typeof embeddedBody === "object" &&
-          typeof (embeddedBody as Record<string, unknown>).indexed_chunk_count ===
-            "number"
+          typeof (embeddedBody as Record<string, unknown>)
+            .indexed_chunk_count === "number"
             ? (embeddedBody as Record<string, unknown>).indexed_chunk_count
             : undefined,
       },
-      vector: {
-        status: "skipped" as const,
-      },
     },
   };
-
-  if (requestedMode === "embedded") {
-    return toJsonResponse({
-      ...baseResponse,
-      effective_mode: "embedded",
-    });
-  }
 
   const vectorRes = await fetch(
     `${backend}/v1/rag/documents/${encodeURIComponent(documentId)}/persist/vector-store`,
@@ -200,7 +187,7 @@ export async function POST(req: Request) {
     const record = vectorBody as Record<string, unknown>;
     return toJsonResponse({
       ...baseResponse,
-      effective_mode: "vector",
+      effective_mode: "hybrid",
       stages: {
         ...baseResponse.stages,
         vector: {
@@ -221,9 +208,9 @@ export async function POST(req: Request) {
   if (failure?.recoverable) {
     return toJsonResponse({
       ...baseResponse,
-      effective_mode: "embedded",
+      effective_mode: "hybrid",
       warning:
-        "Vector persistence failed. Falling back to embedded BM25 retrieval.",
+        "Vector persistence failed. Continuing in hybrid mode with BM25 fallback.",
       stages: {
         ...baseResponse.stages,
         vector: {
@@ -239,7 +226,8 @@ export async function POST(req: Request) {
   return new Response(serializeBody(vectorBody), {
     status: vectorRes.status,
     headers: {
-      "content-type": vectorRes.headers.get("content-type") ?? "application/json",
+      "content-type":
+        vectorRes.headers.get("content-type") ?? "application/json",
     },
   });
 }

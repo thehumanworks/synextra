@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 
 describe("/api/rag/upload POST", () => {
-  it("ingests and persists to embedded store", async () => {
+  it("ingests and persists to embedded and vector stores", async () => {
     process.env.SYNEXTRA_BACKEND_URL = "http://backend";
 
     const fetchMock = vi
@@ -31,6 +31,18 @@ describe("/api/rag/upload POST", () => {
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            document_id: "doc-1",
+            store: "vector-store",
+            status: "ok",
+            vector_store_id: "vs_123",
+            file_ids: ["file_1"],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -53,20 +65,24 @@ describe("/api/rag/upload POST", () => {
     const body = await res.json();
     expect(body.document_id).toBe("doc-1");
     expect(body.ready_for_chat).toBe(true);
-    expect(body.requested_mode).toBe("embedded");
-    expect(body.effective_mode).toBe("embedded");
-    expect(body.stages.vector.status).toBe("skipped");
+    expect(body.requested_mode).toBe("hybrid");
+    expect(body.effective_mode).toBe("hybrid");
+    expect(body.stages.vector.status).toBe("ok");
+    expect(body.stages.vector.vector_store_id).toBe("vs_123");
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0][0]).toBe("http://backend/v1/rag/pdfs");
     expect(fetchMock.mock.calls[1][0]).toBe(
       "http://backend/v1/rag/documents/doc-1/persist/embedded",
+    );
+    expect(fetchMock.mock.calls[2][0]).toBe(
+      "http://backend/v1/rag/documents/doc-1/persist/vector-store",
     );
 
     vi.unstubAllGlobals();
   });
 
-  it("falls back to embedded when vector persistence fails recoverably", async () => {
+  it("keeps hybrid mode when vector persistence fails recoverably", async () => {
     process.env.SYNEXTRA_BACKEND_URL = "http://backend";
 
     const fetchMock = vi
@@ -125,12 +141,12 @@ describe("/api/rag/upload POST", () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.requested_mode).toBe("vector");
-    expect(body.effective_mode).toBe("embedded");
+    expect(body.requested_mode).toBe("hybrid");
+    expect(body.effective_mode).toBe("hybrid");
     expect(body.ready_for_chat).toBe(true);
     expect(body.stages.vector.status).toBe("failed");
     expect(body.stages.vector.recoverable).toBe(true);
-    expect(body.warning).toContain("Falling back to embedded");
+    expect(body.warning).toContain("Continuing in hybrid mode");
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[2][0]).toBe(

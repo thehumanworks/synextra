@@ -10,14 +10,14 @@ from synextra_backend.api import (
     build_rag_ingestion_router,
     build_rag_persistence_router,
 )
-from synextra_backend.services.rag_document_repository import (
-    InMemoryRagDocumentRepository,
-    RagDocumentRepository,
-)
 from synextra_backend.retrieval.bm25_search import Bm25IndexStore
 from synextra_backend.services.embedded_store_persistence import EmbeddedStorePersistence
 from synextra_backend.services.openai_vector_store_persistence import OpenAIVectorStorePersistence
 from synextra_backend.services.rag_agent_orchestrator import RagAgentOrchestrator
+from synextra_backend.services.rag_document_repository import (
+    InMemoryRagDocumentRepository,
+    RagDocumentRepository,
+)
 from synextra_backend.services.session_memory import SessionMemory
 
 DEFAULT_SERVICE_NAME: Final[str] = "synextra-backend"

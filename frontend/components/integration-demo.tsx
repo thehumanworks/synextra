@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 
 import { AiMessageBubble } from "@/components/ai-elements/message-bubble";
+import { ReasoningEffortSelector } from "@/components/chat/reasoning-effort-selector";
 import { StructuredMessage } from "@/components/chat/structured-message";
 import { RetrievalModeSelector } from "@/components/chat/retrieval-mode-selector";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,10 @@ import {
   DEFAULT_RETRIEVAL_MODE,
   type RetrievalMode,
 } from "@/lib/chat/mode-contract";
+import {
+  DEFAULT_REASONING_EFFORT,
+  type ReasoningEffort,
+} from "@/lib/chat/reasoning-contract";
 import { parseStructuredResponse } from "@/lib/chat/structured-response";
 import { ds } from "@/lib/design-system/tokens";
 import { cn } from "@/lib/utils";
@@ -22,9 +27,9 @@ type LocalMessage =
       role: "assistant";
       raw: unknown;
       response: ReturnType<typeof parseStructuredResponse>;
-    };
+};
 
-type UploadPipelineMode = "embedded" | "vector";
+type UploadPipelineMode = RetrievalMode;
 
 type UploadPipelineResponse = {
   document_id: string;
@@ -55,10 +60,6 @@ function SessionIdSlice({ sessionId }: { sessionId: string }) {
   return <span>{slice}…</span>;
 }
 
-function uploadModeForRetrievalMode(mode: RetrievalMode): UploadPipelineMode {
-  return mode === "vector" ? "vector" : "embedded";
-}
-
 function parseUploadPipelineResponse(raw: unknown): UploadPipelineResponse | null {
   if (!raw || typeof raw !== "object") return null;
   const record = raw as Record<string, unknown>;
@@ -75,7 +76,13 @@ function parseUploadPipelineResponse(raw: unknown): UploadPipelineResponse | nul
   if (typeof pageCount !== "number") return null;
   if (typeof chunkCount !== "number") return null;
   if (typeof ready !== "boolean") return null;
-  if (effectiveMode !== "embedded" && effectiveMode !== "vector") return null;
+  if (
+    effectiveMode !== "embedded" &&
+    effectiveMode !== "vector" &&
+    effectiveMode !== "hybrid"
+  ) {
+    return null;
+  }
 
   return {
     document_id: documentId,
@@ -107,6 +114,9 @@ function getErrorMessage(raw: unknown, fallback: string): string {
 
 export function IntegrationDemo() {
   const [mode, setMode] = useState<RetrievalMode>(DEFAULT_RETRIEVAL_MODE);
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(
+    DEFAULT_REASONING_EFFORT,
+  );
   const [prompt, setPrompt] = useState<string>(
     "What is the Transformer model described in the paper?",
   );
@@ -163,10 +173,9 @@ export function IntegrationDemo() {
     }, 260);
 
     try {
-      const uploadMode = uploadModeForRetrievalMode(mode);
       const form = new FormData();
       form.append("file", selectedFile, selectedFile.name || "upload.pdf");
-      form.append("retrieval_mode", uploadMode);
+      form.append("retrieval_mode", "hybrid");
 
       const res = await fetch("/api/rag/upload", {
         method: "POST",
@@ -235,6 +244,7 @@ export function IntegrationDemo() {
           session_id: sessionId,
           prompt: trimmed,
           retrieval_mode: mode,
+          reasoning_effort: reasoningEffort,
         }),
       });
 
@@ -398,6 +408,11 @@ export function IntegrationDemo() {
               onChange={setMode}
               disabled={isSending || isProcessing}
             />
+            <ReasoningEffortSelector
+              value={reasoningEffort}
+              onChange={setReasoningEffort}
+              disabled={isSending || isProcessing}
+            />
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1">
@@ -492,11 +507,11 @@ export function IntegrationDemo() {
             <ul className="list-disc space-y-1 pl-5 text-stone-200">
               <li>Ingest PDF chunks to the repository.</li>
               <li>Persist embedded BM25 index (always).</li>
-              <li>Persist vector embeddings when vector mode is selected.</li>
+              <li>Persist OpenAI vector store files (always).</li>
             </ul>
             <p className="text-xs text-muted-foreground">
-              Retrieval currently uses either local BM25 chunks or OpenAI vector
-              embeddings.
+              Retrieval uses hybrid search by combining BM25 with OpenAI vector
+              retrieval.
             </p>
           </div>
         </div>

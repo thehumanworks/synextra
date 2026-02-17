@@ -24,6 +24,7 @@
 
 - For UI rendering bugs tied to assistant output, inspect and document the backend payload shape/runtime mode before treating it as a frontend-only issue.
 - If `structured-response` falls back to raw text, call this out early in diagnosis and verify whether malformed formatting originates upstream.
+- For Streamdown/AI Elements markdown rendering, keep `@import "katex/dist/katex.min.css"`, `@import "streamdown/styles.css"`, and `@source "../node_modules/streamdown/dist/*.js"` in `app/globals.css`; missing any of these causes broken markdown/math styling.
 - For citation-dedupe/render fixes, add tests that cover near-duplicate citation payloads, not only exact duplicate ids.
 - Do not mark UI issues resolved from backend metrics alone; confirm in a real UI flow (component/integration/Playwright/manual repro).
 - Before handoff, run frontend lint, typecheck, and tests (or explicitly report which checks were intentionally skipped).

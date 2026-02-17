@@ -3,7 +3,7 @@ import { z } from "zod";
 export const RetrievalModeSchema = z.enum(["embedded", "vector", "hybrid"]);
 export type RetrievalMode = z.infer<typeof RetrievalModeSchema>;
 
-export const DEFAULT_RETRIEVAL_MODE: RetrievalMode = "embedded";
+export const DEFAULT_RETRIEVAL_MODE: RetrievalMode = "hybrid";
 
 export function coerceRetrievalMode(value: unknown): {
   mode: RetrievalMode;
