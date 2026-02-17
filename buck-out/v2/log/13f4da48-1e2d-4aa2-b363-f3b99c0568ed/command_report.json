@@ -1,0 +1,10 @@
+{
+  "trace_id": "13f4da48-1e2d-4aa2-b363-f3b99c0568ed",
+  "exit_code": 3,
+  "error_messages": [
+    "From load at implicit location\n\nCaused by:\n    0: From load at prelude/prelude.bzl:9\n    1: From load at prelude/native.bzl:25\n    2: From load at prelude/erlang/erlang.bzl:12\n    3: Error evaluating module: `prelude//erlang/erlang_otp_application.bzl`\n    4: Traceback (most recent call last):\n         * prelude/erlang/erlang_otp_application.bzl:135, in <module>\n             \"_toolchain\": attrs.toolchain_dep(default = \"toolchains//:erlang-default\"),\n       \n       error: Error coercing attribute default\n          --> prelude/erlang/erlang_otp_application.bzl:135:23\n           |\n       135 |         \"_toolchain\": attrs.toolchain_dep(default = \"toolchains//:erlang-default\"),\n           |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n           |\n    5: Error coercing \"toolchains//:erlang-default\"\n    6: Invalid target pattern `toolchains//:erlang-default` is not allowed\n    7: unknown cell alias: `toolchains`. In cell `prelude`, known aliases are: `buck, config, fbcode, fbsource, none, ovr_config, prelude, root`"
+  ],
+  "finalizing_error_messages": [
+    "'invocation recorder' failed to finalize\n\nCaused by:\n    Scribe sink not enabled (internal error)"
+  ]
+}

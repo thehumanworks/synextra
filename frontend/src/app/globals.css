@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5f7f3;
+  --foreground: #102a3a;
+  --card: #ffffffcc;
+  --card-foreground: #0f172a;
+  --primary: #0f766e;
+  --primary-foreground: #ecfeff;
+  --secondary: #dbeafe;
+  --secondary-foreground: #1e3a8a;
+  --border: #cbd5e1;
+  --input: #f8fafc;
+  --ring: #0f766e;
+  --radius: 0.8rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% 10%, #bae6fd 0%, transparent 38%),
+    radial-gradient(circle at 88% 88%, #a7f3d0 0%, transparent 36%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}

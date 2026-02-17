@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -e
+__SRC="${BASH_SOURCE[0]}"
+__SRC="$(realpath "$__SRC")"
+__SCRIPT_DIR=$(dirname "$__SRC")
+export BUCK_SH_BINARY_VERSION_UNSTABLE=2
+export BUCK_PROJECT_ROOT="$__SCRIPT_DIR/../c7a5b4874d89d573/resources"
+export BUCK_DEFAULT_RUNTIME_RESOURCES="$BUCK_PROJECT_ROOT"
+exec "$BUCK_PROJECT_ROOT/tools/buck/workspace.sh" "$@"

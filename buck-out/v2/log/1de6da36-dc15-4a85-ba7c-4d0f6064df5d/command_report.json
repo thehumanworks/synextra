@@ -1,0 +1,10 @@
+{
+  "trace_id": "1de6da36-dc15-4a85-ba7c-4d0f6064df5d",
+  "exit_code": 3,
+  "error_messages": [
+    "package `root//frontend:` does not exist\n    missing `BUCK` file (also missing alternatives `BUCK.v2`)"
+  ],
+  "finalizing_error_messages": [
+    "'invocation recorder' failed to finalize\n\nCaused by:\n    Scribe sink not enabled (internal error)"
+  ]
+}

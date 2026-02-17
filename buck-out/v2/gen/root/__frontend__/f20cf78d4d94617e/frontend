@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -e
+__SRC="${BASH_SOURCE[0]}"
+__SRC="$(realpath "$__SRC")"
+__SCRIPT_DIR=$(dirname "$__SRC")
+export BUCK_SH_BINARY_VERSION_UNSTABLE=2
+export BUCK_PROJECT_ROOT="$__SCRIPT_DIR/../2f5862aa6a4f5484/resources"
+export BUCK_DEFAULT_RUNTIME_RESOURCES="$BUCK_PROJECT_ROOT"
+exec "$BUCK_PROJECT_ROOT/tools/buck/frontend.sh" "$@"
