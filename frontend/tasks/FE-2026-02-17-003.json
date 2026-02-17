@@ -1,0 +1,152 @@
+{
+  "task_id": "FE-2026-02-17-003",
+  "feature_branch": "feature/spec-frontend-rag",
+  "description": "Implement structured backend JSON parsing into readable chat messages with citation rendering, resilient fallback behavior, and test-first parser/renderer integration.",
+  "related_adrs": [
+    "frontend/adrs/0003-structured-chat-rendering-and-mode-routing.md",
+    "frontend/adrs/0002-dark-theme-typography-design-system.md"
+  ],
+  "bdd_flows": [
+    {
+      "title": "Structured response is transformed into chat-ready view models",
+      "given": "the backend returns schema-compliant JSON for an assistant turn",
+      "when": "the frontend parser consumes the payload",
+      "then": "the UI receives normalized message blocks ready for chat rendering"
+    },
+    {
+      "title": "Citations are visible and traceable",
+      "given": "a response includes citation metadata",
+      "when": "the assistant message is rendered",
+      "then": "the citation list appears with source labels and target URLs/identifiers"
+    },
+    {
+      "title": "Malformed payloads fail safely",
+      "given": "the backend returns malformed or partial JSON",
+      "when": "parsing fails",
+      "then": "the UI shows a recoverable fallback message and does not crash the chat thread"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "zod",
+      "repository": "https://github.com/colinhacks/zod",
+      "purpose": "runtime schema validation and safe parse fallback behavior"
+    },
+    {
+      "name": "react",
+      "repository": "https://github.com/facebook/react",
+      "purpose": "structured message rendering components"
+    },
+    {
+      "name": "next",
+      "repository": "https://github.com/vercel/next.js",
+      "purpose": "route integration and frontend runtime"
+    },
+    {
+      "name": "playwright",
+      "repository": "https://github.com/microsoft/playwright",
+      "purpose": "manual end-to-end verification of rendered citations"
+    }
+  ],
+  "target_files": [
+    "frontend/src/lib/chat/structured-response.ts",
+    "frontend/src/lib/chat/structured-response.test.ts",
+    "frontend/src/lib/chat/citation-utils.ts",
+    "frontend/src/lib/chat/citation-utils.test.ts",
+    "frontend/src/components/ai-elements/structured-message.tsx",
+    "frontend/src/components/ai-elements/structured-message.test.tsx",
+    "frontend/src/components/integration-demo.tsx",
+    "frontend/src/components/integration-demo.test.tsx",
+    "frontend/src/app/api/chat/route.test.ts"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "the backend response includes text blocks and citations",
+      "when": "parseStructuredResponse is called",
+      "then": "the parser returns normalized blocks and a citation array with stable ids"
+    },
+    {
+      "if": "the backend omits optional fields",
+      "when": "safe parsing runs through the schema",
+      "then": "defaults are applied without throwing and the message still renders"
+    },
+    {
+      "if": "multiple blocks reference the same citation source",
+      "when": "citation normalization runs",
+      "then": "citations are deduplicated while preserving first-seen ordering"
+    },
+    {
+      "if": "an unknown block type is present",
+      "when": "the parser validates the payload",
+      "then": "the unknown block is skipped or mapped to fallback text without crashing"
+    },
+    {
+      "if": "the payload is malformed JSON text",
+      "when": "the integration layer attempts to parse it",
+      "then": "an explicit fallback assistant message is rendered with recoverable error metadata"
+    },
+    {
+      "if": "the response includes citations with long source titles",
+      "when": "the citation list is rendered",
+      "then": "truncation and tooltip/title handling preserve readability and source traceability"
+    }
+  ],
+  "test_plan": {
+    "tdd_sequence": [
+      "Write failing parser unit tests for valid, partial, malformed, and unknown block-type payloads.",
+      "Write failing component tests for structured message rendering and citation display behavior.",
+      "Write failing integration tests covering end-to-end parser + integration-demo rendering with mocked backend responses.",
+      "Implement parser and renderer changes to satisfy tests, then execute Playwright manual validation steps."
+    ],
+    "unit_tests": [
+      "Schema validation and normalization paths in structured-response parser.",
+      "Citation normalization utilities for dedupe, stable ordering, and display-safe labels."
+    ],
+    "integration_tests": [
+      "Mock `/api/chat` structured payload and verify integration-demo renders readable message text plus citation list.",
+      "Mock malformed payload from backend and verify fallback assistant message appears with no runtime crash."
+    ],
+    "playwright_manual_validation": [
+      {
+        "id": "PW-PARSE-001",
+        "step": "Submit a prompt that yields a structured response with at least two citations.",
+        "expected": "Assistant output renders as readable chat text and citations are visible under the message."
+      },
+      {
+        "id": "PW-PARSE-002",
+        "step": "Trigger a backend response with intentionally malformed structure in a controlled dev path.",
+        "expected": "UI shows a graceful fallback assistant message and chat input remains usable."
+      },
+      {
+        "id": "PW-PARSE-003",
+        "step": "Inspect citation entries for duplicate sources.",
+        "expected": "Duplicate citations are collapsed while preserving deterministic ordering."
+      }
+    ]
+  },
+  "status_lifecycle": ["todo", "review", "done"],
+  "status": "todo",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "pending",
+    "verdict": "pending",
+    "notes": ["Pending implementation and subagent review."]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T14:30:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Drafted JSON parsing and citation-rendering task as a planning spec with required schema fields."
+    },
+    {
+      "timestamp": "2026-02-17T14:34:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Added TDD-first parser/component/integration test expectations, including malformed payload fallbacks."
+    },
+    {
+      "timestamp": "2026-02-17T14:37:00Z",
+      "actor": "frontend-spec-agent",
+      "entry": "Linked ADR 0003 and kept status as todo with pending review placeholders."
+    }
+  ]
+}
