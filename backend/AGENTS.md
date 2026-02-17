@@ -20,6 +20,14 @@
 - Keep style and quality aligned with PEP guidance and strict linting/type checks.
 - `AGENTS.md` is organizational memory, not a changelog.
 
+## Backend Retrospective Reminders
+
+- For chat quality/format bugs, confirm the active synthesis mode first (OpenAI path, feature gates, API key presence, fallback path) before changing text post-processing.
+- When changing default model IDs or generation settings, verify the model name against official provider docs before hardcoding.
+- For synthesis behavior changes, include regression tests for both primary generation and fallback paths, plus readability/format expectations.
+- Do not conclude "fixed" from internal counters alone; validate the user-visible symptom with an integration path that mirrors real responses.
+- Before handoff, run backend lint, typecheck, and tests (or explicitly call out why any check was skipped).
+
 ## Buck2 Validation Discipline
 
 - If `backend/pyproject.toml` or `backend/uv.lock` changes, run `buck2 run //:backend-install` (or `buck2 run //:install`) before lint/test/typecheck.

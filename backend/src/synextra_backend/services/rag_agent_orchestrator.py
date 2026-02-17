@@ -19,8 +19,19 @@ from synextra_backend.services.session_memory import SessionMemory
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
 
+def _normalize_inline_whitespace(text: str) -> str:
+    return " ".join(text.split()).strip()
+
+
+def _quote_fingerprint(text: str, *, prefix_len: int = 160) -> str:
+    normalized = _normalize_inline_whitespace(text).lower()
+    if len(normalized) <= prefix_len:
+        return normalized
+    return normalized[:prefix_len]
+
+
 def _truncate_quote(text: str, limit: int = 240) -> str:
-    cleaned = " ".join(text.split())
+    cleaned = _normalize_inline_whitespace(text)
     if len(cleaned) <= limit:
         return cleaned
     return cleaned[: limit].rstrip() + "…"
@@ -30,7 +41,7 @@ def _simple_summary(evidence: list[EvidenceChunk], *, max_sentences: int = 4) ->
     sentences: list[str] = []
     for chunk in evidence:
         for sentence in _SENTENCE_RE.split(chunk.text):
-            sentence = sentence.strip()
+            sentence = _normalize_inline_whitespace(sentence)
             if not sentence:
                 continue
             sentences.append(sentence)
@@ -173,18 +184,29 @@ class RagAgentOrchestrator:
 
     def _build_citations(self, evidence: list[EvidenceChunk]) -> list[RagCitation]:
         citations: list[RagCitation] = []
-        seen: set[tuple[str, str]] = set()
+        seen_chunks: set[tuple[str, str]] = set()
+        seen_quotes: set[tuple[str, str]] = set()
         for chunk in evidence:
             key = (chunk.document_id, chunk.chunk_id)
-            if key in seen:
+            if key in seen_chunks:
                 continue
-            seen.add(key)
+            seen_chunks.add(key)
+
+            supporting_quote = _truncate_quote(chunk.text)
+            if not supporting_quote:
+                continue
+
+            quote_key = (chunk.document_id, _quote_fingerprint(supporting_quote))
+            if quote_key in seen_quotes:
+                continue
+            seen_quotes.add(quote_key)
+
             citations.append(
                 RagCitation(
                     document_id=chunk.document_id,
                     chunk_id=chunk.chunk_id,
                     page_number=chunk.page_number,
-                    supporting_quote=_truncate_quote(chunk.text),
+                    supporting_quote=supporting_quote,
                     source_tool=chunk.source_tool,
                     score=chunk.score,
                 )
@@ -194,10 +216,6 @@ class RagAgentOrchestrator:
     async def _synthesize_answer(
         self, *, prompt: str, evidence: list[EvidenceChunk], citations: list[RagCitation]
     ) -> str:
-        use_openai = os.getenv("SYNEXTRA_USE_OPENAI_CHAT", "0").strip() in {"1", "true", "yes"}
-        if not use_openai:
-            return _simple_summary(evidence)
-
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return _simple_summary(evidence)
@@ -208,7 +226,7 @@ class RagAgentOrchestrator:
             return _simple_summary(evidence)
 
         client = OpenAI()
-        model = os.getenv("SYNEXTRA_CHAT_MODEL", "gpt-4.1")
+        model = os.getenv("SYNEXTRA_CHAT_MODEL", "gpt-5.2")
 
         context_lines: list[str] = []
         for idx, citation in enumerate(citations, start=1):

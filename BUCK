@@ -114,3 +114,26 @@ command_alias(
     exe = ":workspace",
     args = ["dev"],
 )
+
+sh_binary(
+    name = "memory",
+    main = "tools/buck/memory.sh",
+)
+
+command_alias(
+    name = "sessions",
+    exe = ":memory",
+    args = ["sessions"],
+)
+
+command_alias(
+    name = "messages",
+    exe = ":memory",
+    args = ["messages"],
+)
+
+command_alias(
+    name = "last-messages",
+    exe = ":memory",
+    args = ["last-messages"],
+)

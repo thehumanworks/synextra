@@ -35,6 +35,38 @@ describe("citation-utils", () => {
     expect(deduped[1].chunk_id).toBe("c2");
   });
 
+  it("dedupeCitations collapses equivalent quotes across different chunk ids", () => {
+    const sharedPrefix = `${"token ".repeat(35)}`.trim();
+    const citations = [
+      {
+        document_id: "doc",
+        chunk_id: "c1",
+        page_number: 14,
+        supporting_quote: `${sharedPrefix} alpha tail`,
+        source_tool: "bm25",
+      },
+      {
+        document_id: "doc",
+        chunk_id: "c2",
+        page_number: 13,
+        supporting_quote: `${sharedPrefix} beta tail`,
+        source_tool: "bm25",
+      },
+      {
+        document_id: "doc",
+        chunk_id: "c3",
+        page_number: 6,
+        supporting_quote: "The Transformer uses multi-head attention in encoder/decoder stacks.",
+        source_tool: "bm25",
+      },
+    ];
+
+    const deduped = dedupeCitations(citations);
+    expect(deduped).toHaveLength(2);
+    expect(deduped[0].chunk_id).toBe("c1");
+    expect(deduped[1].chunk_id).toBe("c3");
+  });
+
   it("truncateQuote clamps long text", () => {
     const quote = "x".repeat(300);
     const truncated = truncateQuote(quote, 120);

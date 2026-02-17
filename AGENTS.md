@@ -41,5 +41,14 @@
 - Store architectural decisions in `adrs/` with alternatives considered.
 - For coupled frontend/backend specs, maintain one canonical request/response contract.
 - Validate enum values and required fields stay in parity before marking planning tasks ready.
+- For diagnosis-only asks, explicitly separate analysis from implementation and state whether any fix was or was not applied.
+- For persistent UI/UX defects, verify runtime mode/config first (for example OpenAI synthesis path vs `_simple_summary` fallback) before narrowing to rendering code.
+- Do not claim a bug is fixed from proxy metrics alone; confirm the exact symptom is gone through end-to-end reproduction (integration test or manual UI check).
+- When users report "still seeing the same issue," re-run the live repro immediately and reassess root cause before layering more patches.
+- For cross-stack edits, run repo-standard validation (`buck2 run //:lint`, `buck2 run //:typecheck`, `buck2 run //:test` or `buck2 run //:check`) unless the user explicitly scopes checks down; report skipped checks.
+- Before handoff, run a self-review on the diff to catch residual regressions, edge cases, and mismatches with the user's stated intent.
 - RAG chat fallback rendering: if structured-response parsing fails, frontend renders raw assistant text with preserved newlines (`whitespace-pre-wrap`), so token-per-line backend output appears as a vertical word list.
 - Citation dedupe keyed only by `document_id` + `chunk_id` does not collapse overlap-heavy chunking output; dedupe by normalized span/text if repeated citation cards become noisy.
+- For `_simple_summary` outputs, normalize internal whitespace before joining sentences to avoid newline-heavy token dumps from retrieval chunks.
+- For repeated near-duplicate citations, fingerprint normalized supporting quotes (prefix-based) rather than relying on chunk ids alone.
+- OpenAI answer synthesis is not gated by `SYNEXTRA_USE_OPENAI_CHAT`; it is attempted whenever `OPENAI_API_KEY` is present, with local summary fallback on missing key/SDK/error.

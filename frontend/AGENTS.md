@@ -20,6 +20,14 @@
 - Keep `frontend/vitest.config.ts` aligned with the current folder layout (`app/**`, `components/**`, `lib/**`) and `test/setup.ts`; stale `src/**` patterns can silently skip tests.
 - `AGENTS.md` is organizational memory, not a changelog.
 
+## Frontend Retrospective Reminders
+
+- For UI rendering bugs tied to assistant output, inspect and document the backend payload shape/runtime mode before treating it as a frontend-only issue.
+- If `structured-response` falls back to raw text, call this out early in diagnosis and verify whether malformed formatting originates upstream.
+- For citation-dedupe/render fixes, add tests that cover near-duplicate citation payloads, not only exact duplicate ids.
+- Do not mark UI issues resolved from backend metrics alone; confirm in a real UI flow (component/integration/Playwright/manual repro).
+- Before handoff, run frontend lint, typecheck, and tests (or explicitly report which checks were intentionally skipped).
+
 ## Buck2 Validation Discipline
 
 - If frontend dependency manifests or lockfiles change (`frontend/package.json` or lockfiles), run `buck2 run //:frontend-install` (or `buck2 run //:install`) before lint/test/typecheck/build.
