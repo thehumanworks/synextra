@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 from synextra import ResearchResult, Synextra
-from synextra.schemas.rag_chat import ReasoningEffort, RetrievalMode
+from synextra.schemas.rag_chat import ReasoningEffort
 
 app = typer.Typer(add_completion=False, help="Synextra CLI (SDK-powered).")
 
@@ -106,7 +106,6 @@ def query(
     result = client.query(
         prompt,
         session_id=session_id,
-        mode="hybrid",
         reasoning_effort=reasoning_effort,
     )
 
@@ -149,10 +148,6 @@ def research(
         str,
         typer.Option("--session-id", help="Conversation/session id."),
     ] = "cli",
-    mode: Annotated[
-        RetrievalMode,
-        typer.Option("--mode", help="Retrieval mode: embedded|hybrid."),
-    ] = "hybrid",
     reasoning_effort: Annotated[
         ReasoningEffort,
         typer.Option(
@@ -175,7 +170,6 @@ def research(
     res: ResearchResult = client.research(
         prompt,
         session_id=session_id,
-        mode=mode,
         reasoning_effort=reasoning_effort,
     )
 
@@ -233,10 +227,6 @@ def synthesize(
         str,
         typer.Option("--session-id", help="Conversation/session id."),
     ] = "cli",
-    mode: Annotated[
-        RetrievalMode,
-        typer.Option("--mode", help="Retrieval mode: embedded|hybrid."),
-    ] = "hybrid",
     reasoning_effort: Annotated[
         ReasoningEffort,
         typer.Option(
@@ -256,7 +246,6 @@ def synthesize(
     research_res = client.research(
         prompt,
         session_id=session_id,
-        mode=mode,
         reasoning_effort=reasoning_effort,
     )
 
@@ -325,7 +314,6 @@ def chat(
         res = client.query(
             text,
             session_id=session_id,
-            mode="hybrid",
             reasoning_effort=reasoning_effort,
         )
         typer.echo(res.answer)

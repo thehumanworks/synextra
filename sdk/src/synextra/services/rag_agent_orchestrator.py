@@ -22,6 +22,7 @@ from synextra.schemas.rag_chat import (
     RagChatResponse,
     RagCitation,
     ReasoningEffort,
+    RetrievalMode,
     ReviewEvent,
     SearchEvent,
     StreamEvent,
@@ -177,7 +178,7 @@ class RagAgentOrchestrator:
 
     async def handle_message(self, *, session_id: str, request: RagChatRequest) -> RagChatResponse:
         prompt = request.prompt.strip()
-        mode = request.retrieval_mode
+        mode: RetrievalMode = "hybrid"
         reasoning_effort = request.reasoning_effort
 
         self._session_memory.append_turn(
@@ -908,7 +909,7 @@ Use the tools below to extract additional evidence from the documents.
         contain search/reasoning/review events emitted during evidence collection.
         """
         prompt = request.prompt.strip()
-        mode = request.retrieval_mode
+        mode: RetrievalMode = "hybrid"
         reasoning_effort = request.reasoning_effort
         event_collector: list[StreamEvent] = []
 

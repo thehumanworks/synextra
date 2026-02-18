@@ -8,7 +8,7 @@ from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
-from synextra.schemas.rag_chat import RagChatRequest, RagChatResponse, StreamEvent
+from synextra.schemas.rag_chat import RagChatRequest, RagChatResponse, RetrievalMode, StreamEvent
 from synextra.services.rag_agent_orchestrator import RagAgentOrchestrator
 
 from synextra_backend.schemas.errors import ApiErrorResponse, error_response
@@ -18,6 +18,7 @@ _STREAM_EVENTS_SEPARATOR = "\x1d"
 _STREAM_EVENTS_DONE = object()
 _NO_PRELOADED_EVENT = object()
 _RETRIEVAL_ERROR_ANSWER = "I hit an internal error while gathering evidence. Please retry."
+_HYBRID_MODE: RetrievalMode = "hybrid"
 
 
 def _get_orchestrator(request: Request) -> RagAgentOrchestrator:
@@ -48,10 +49,9 @@ def build_rag_chat_router() -> APIRouter:
         orchestrator: RagAgentOrchestrator = ORCHESTRATOR_DEPENDENCY,
     ) -> RagChatResponse | JSONResponse:
         try:
-            hybrid_request = request.model_copy(update={"retrieval_mode": "hybrid"})
             return await orchestrator.handle_message(
                 session_id=session_id,
-                request=hybrid_request,
+                request=request,
             )
         except Exception as exc:  # pragma: no cover
             payload = error_response(
@@ -75,7 +75,6 @@ def build_rag_chat_router() -> APIRouter:
         request: RagChatRequest,
         orchestrator: RagAgentOrchestrator = ORCHESTRATOR_DEPENDENCY,
     ) -> Response:
-        hybrid_request = request.model_copy(update={"retrieval_mode": "hybrid"})
         event_queue: asyncio.Queue[object] = asyncio.Queue()
 
         async def on_stream_event(event: StreamEvent) -> None:
@@ -85,7 +84,7 @@ def build_rag_chat_router() -> APIRouter:
             try:
                 return await orchestrator.collect_evidence(
                     session_id=session_id,
-                    request=hybrid_request,
+                    request=request,
                     event_sink=on_stream_event,
                 )
             finally:
@@ -142,14 +141,14 @@ def build_rag_chat_router() -> APIRouter:
                         session_id=session_id,
                         role="assistant",
                         content=_RETRIEVAL_ERROR_ANSWER,
-                        mode=hybrid_request.retrieval_mode,
+                        mode=_HYBRID_MODE,
                         citations=[],
                         tools_used=["chat_failed"],
                     )
                     yield _STREAM_METADATA_SEPARATOR + json.dumps(
                         {
                             "citations": [],
-                            "mode": hybrid_request.retrieval_mode,
+                            "mode": _HYBRID_MODE,
                             "tools_used": ["chat_failed"],
                         },
                         default=str,
@@ -162,9 +161,9 @@ def build_rag_chat_router() -> APIRouter:
                 # Phase 2: Stream answer tokens.
                 answer_parts: list[str] = []
                 async for token in orchestrator.stream_synthesis(
-                    prompt=hybrid_request.prompt.strip(),
+                    prompt=request.prompt.strip(),
                     retrieval=retrieval,
-                    reasoning_effort=hybrid_request.reasoning_effort,
+                    reasoning_effort=request.reasoning_effort,
                 ):
                     answer_parts.append(token)
                     yield token
@@ -174,7 +173,7 @@ def build_rag_chat_router() -> APIRouter:
                     session_id=session_id,
                     role="assistant",
                     content=full_answer,
-                    mode=hybrid_request.retrieval_mode,
+                    mode=_HYBRID_MODE,
                     citations=retrieval.citations,
                     tools_used=retrieval.tools_used,
                 )
@@ -182,7 +181,7 @@ def build_rag_chat_router() -> APIRouter:
                 # Phase 3: Metadata trailer.
                 metadata = {
                     "citations": [c.model_dump() for c in retrieval.citations],
-                    "mode": hybrid_request.retrieval_mode,
+                    "mode": _HYBRID_MODE,
                     "tools_used": retrieval.tools_used,
                 }
                 yield _STREAM_METADATA_SEPARATOR + json.dumps(

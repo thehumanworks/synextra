@@ -50,7 +50,7 @@ class _FakeOrchestrator:
             raise RuntimeError("stream failed")
         return RagChatResponse(
             session_id=session_id,
-            mode=request.retrieval_mode,
+            mode="hybrid",
             answer="".join(self._tokens),
             tools_used=["bm25_search"],
             citations=self._citations,
@@ -319,7 +319,7 @@ async def test_stream_handles_retrieval_failure_after_events_have_started() -> N
 
 
 @pytest.mark.asyncio
-async def test_stream_forces_hybrid_retrieval_mode() -> None:
+async def test_stream_accepts_legacy_retrieval_mode_field() -> None:
     orchestrator = _FakeOrchestrator()
     app = FastAPI()
     app.state.rag_orchestrator = orchestrator
@@ -327,14 +327,15 @@ async def test_stream_forces_hybrid_retrieval_mode() -> None:
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        await client.post(
+        response = await client.post(
             "/v1/rag/sessions/s1/messages/stream",
             json={"prompt": "hello", "retrieval_mode": "embedded"},
         )
 
+    assert response.status_code == 200
     assert len(orchestrator.collect_evidence_calls) == 1
     _, request = orchestrator.collect_evidence_calls[0]
-    assert request.retrieval_mode == "hybrid"
+    assert not hasattr(request, "retrieval_mode")
 
 
 @pytest.mark.asyncio

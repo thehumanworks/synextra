@@ -92,6 +92,7 @@ class ResearchResult:
 
 
 ReviewVerdict = Literal["approved", "rejected", "unknown"]
+_HYBRID_MODE: RetrievalMode = "hybrid"
 
 
 @dataclass(frozen=True)
@@ -378,7 +379,6 @@ class Synextra:
         prompt: str,
         *,
         session_id: str = "default",
-        mode: RetrievalMode = "hybrid",
         reasoning_effort: str = "medium",
         review_enabled: bool = False,
     ) -> ResearchResult:
@@ -388,7 +388,6 @@ class Synextra:
 
         request = RagChatRequest(
             prompt=prompt,
-            retrieval_mode=mode,
             reasoning_effort=reasoning_effort,  # type: ignore[arg-type]
             review_enabled=review_enabled,
         )
@@ -400,7 +399,7 @@ class Synextra:
         return ResearchResult(
             session_id=session_id,
             prompt=prompt,
-            mode=mode,
+            mode=_HYBRID_MODE,
             retrieval=retrieval,
             events=list(events),
         )
@@ -472,7 +471,6 @@ class Synextra:
         prompt: str,
         *,
         session_id: str = "default",
-        mode: RetrievalMode = "hybrid",
         reasoning_effort: str = "medium",
         review_enabled: bool = False,
     ) -> QueryResult:
@@ -481,7 +479,6 @@ class Synextra:
         research = self.research(
             prompt,
             session_id=session_id,
-            mode=mode,
             reasoning_effort=reasoning_effort,
             review_enabled=review_enabled,
         )
@@ -492,7 +489,7 @@ class Synextra:
             session_id=session_id,
             role="assistant",
             content=synthesis.answer,
-            mode=mode,
+            mode=_HYBRID_MODE,
             citations=synthesis.citations,
             tools_used=synthesis.tools_used,
         )
@@ -500,7 +497,7 @@ class Synextra:
         return QueryResult(
             session_id=session_id,
             prompt=prompt,
-            mode=mode,
+            mode=_HYBRID_MODE,
             answer=synthesis.answer,
             citations=synthesis.citations,
             tools_used=synthesis.tools_used,

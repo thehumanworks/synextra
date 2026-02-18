@@ -204,7 +204,7 @@ async def test_collect_evidence_returns_retrieval_result_with_answer(
 
     monkeypatch.setattr(orchestrator, "_call_agent", _fake_call_agent)
 
-    request = RagChatRequest(prompt="What?", retrieval_mode="hybrid")
+    request = RagChatRequest(prompt="What?")
     result, events = await orchestrator.collect_evidence(session_id="s1", request=request)
 
     assert isinstance(result, RetrievalResult)
@@ -887,7 +887,7 @@ async def test_collect_evidence_returns_events_list(
     monkeypatch.setattr(orchestrator, "_call_agent", _fake_call_agent)
     monkeypatch.setattr(orchestrator, "_judge_answer", _fake_judge)
 
-    request = RagChatRequest(prompt="What?", retrieval_mode="hybrid", review_enabled=True)
+    request = RagChatRequest(prompt="What?", review_enabled=True)
     result, events = await orchestrator.collect_evidence(session_id="s1", request=request)
 
     assert isinstance(result, RetrievalResult)
@@ -941,7 +941,7 @@ async def test_collect_evidence_forwards_events_to_live_sink(
     async def _event_sink(event: Any) -> None:
         sink_events.append(event)
 
-    request = RagChatRequest(prompt="What?", retrieval_mode="hybrid", review_enabled=False)
+    request = RagChatRequest(prompt="What?", review_enabled=False)
     _result, events = await orchestrator.collect_evidence(
         session_id="s1",
         request=request,
@@ -977,7 +977,7 @@ async def test_collect_evidence_returns_empty_events_on_no_tools(
     monkeypatch.setattr(orchestrator, "_call_agent", _fake_call_agent)
     monkeypatch.setattr(orchestrator, "_judge_answer", _fake_judge)
 
-    request = RagChatRequest(prompt="What?", retrieval_mode="hybrid", review_enabled=True)
+    request = RagChatRequest(prompt="What?", review_enabled=True)
     _result, events = await orchestrator.collect_evidence(session_id="s1", request=request)
 
     assert isinstance(events, list)

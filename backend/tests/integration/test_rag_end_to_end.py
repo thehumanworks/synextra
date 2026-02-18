@@ -34,7 +34,6 @@ async def test_rag_ingestion_persistence_and_chat(client: AsyncClient) -> None:
         "/v1/rag/sessions/test-session/messages",
         json={
             "prompt": "What is the Transformer model described in the paper?",
-            "retrieval_mode": "hybrid",
         },
     )
 

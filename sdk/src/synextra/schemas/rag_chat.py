@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-RetrievalMode = Literal["embedded", "hybrid"]
+# Retrieval is currently fixed to hybrid mode.
+RetrievalMode = Literal["hybrid"]
 ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh"]
 
 
@@ -71,9 +72,18 @@ class RagChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     prompt: str = Field(..., min_length=1)
-    retrieval_mode: RetrievalMode = "hybrid"
     reasoning_effort: ReasoningEffort = "medium"
     review_enabled: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _strip_legacy_retrieval_mode(cls, value: object) -> object:
+        # Keep backward compatibility for clients still sending retrieval_mode.
+        if isinstance(value, dict) and "retrieval_mode" in value:
+            copied = dict(value)
+            copied.pop("retrieval_mode", None)
+            return copied
+        return value
 
 
 class RagChatResponse(BaseModel):
