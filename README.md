@@ -41,7 +41,7 @@ The application ingests and parses documents of different formats (`pdf`, `docx`
 
 4. The fourth step is the final response generation. The agent will generate a final response based on the retrieved chunks. This is done by the `generate_response` method in `sdk/synextra/services/rag_agent_orchestrator.py`. The response include citations from the sources used and this is displayed in the UI.
 
-Care was taken to make sure the Agent is aware of session-context (the backend uses the `openai-agents` python SDK) and that the interface prevents the user from sending messages when an on-going RAG session is in-place.
+Care was taken to make sure the Agent is aware of session-context (the backend uses the `openai-agents` python SDK) and that the interface prevents the user from sending messages when an on-going RAG session is in-place. Additionally, the chat renders markdown prettified and latex notation for mathematical equations (useful when ingesting research papers - the full `attention is all you need` paper is in this repo's root).
 
 NOTE: if you don't like dark mode interfaces, I do apologise.
 
