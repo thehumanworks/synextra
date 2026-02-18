@@ -1,1 +1,1 @@
-"""Retrieval helpers for embedded (BM25) and vector-store search."""
+"""Legacy namespace retained after moving retrieval imports to `synextra.retrieval`."""

@@ -1,0 +1,162 @@
+{
+  "task_id": "BE-2026-02-18-004",
+  "feature_branch": "current",
+  "description": "Remove backend compatibility wrappers and switch backend source/tests to direct synextra SDK imports.",
+  "bdd_flows": [
+    {
+      "title": "Backend imports SDK directly",
+      "given": "backend API routes and unit tests",
+      "when": "modules are imported",
+      "then": "they resolve ingestion/retrieval/orchestration types from synextra.* without synextra_backend wrapper modules"
+    },
+    {
+      "title": "Backend API contracts remain stable",
+      "given": "existing FastAPI endpoints and schema payloads",
+      "when": "tests execute",
+      "then": "status codes and response models remain unchanged"
+    },
+    {
+      "title": "Wrapper layer removed",
+      "given": "wrapper-only modules under synextra_backend",
+      "when": "migration is complete",
+      "then": "wrapper files are deleted and no backend/src or backend/tests imports reference them"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "synextra",
+      "repository": "local sdk workspace",
+      "purpose": "canonical ingestion/retrieval/orchestration runtime"
+    },
+    {
+      "name": "pytest",
+      "repository": "https://github.com/pytest-dev/pytest",
+      "purpose": "backend regression validation"
+    }
+  ],
+  "target_files": [
+    "backend/src/synextra_backend/api/rag_chat.py",
+    "backend/src/synextra_backend/schemas/__init__.py",
+    "backend/src/synextra_backend/handlers/parser.py",
+    "backend/src/synextra_backend/services/__init__.py",
+    "backend/src/synextra_backend/services/block_chunker.py",
+    "backend/src/synextra_backend/services/citation_validator.py",
+    "backend/src/synextra_backend/services/document_ingestion.py",
+    "backend/src/synextra_backend/services/document_store.py",
+    "backend/src/synextra_backend/services/embedded_store_persistence.py",
+    "backend/src/synextra_backend/services/pdf_ingestion.py",
+    "backend/src/synextra_backend/services/rag_agent_orchestrator.py",
+    "backend/src/synextra_backend/services/rag_document_repository.py",
+    "backend/src/synextra_backend/services/session_memory.py",
+    "backend/src/synextra_backend/retrieval/__init__.py",
+    "backend/src/synextra_backend/retrieval/bm25_search.py",
+    "backend/src/synextra_backend/retrieval/types.py",
+    "backend/src/synextra_backend/repositories/__init__.py",
+    "backend/src/synextra_backend/repositories/rag_document_repository.py",
+    "backend/src/synextra_backend/schemas/rag_chat.py",
+    "backend/src/synextra_backend/sdk.py",
+    "backend/tests/unit/services/test_pdf_ingestion.py",
+    "backend/tests/unit/services/test_block_chunker.py",
+    "backend/tests/unit/services/test_document_store.py",
+    "backend/tests/unit/services/test_rag_agent_orchestrator.py",
+    "backend/tests/unit/api/test_rag_chat_streaming.py",
+    "backend/tests/unit/api/test_rag_persistence.py",
+    "backend/adrs/0008-backend-direct-sdk-imports.md",
+    "backend/AGENTS.md",
+    "AGENTS.md"
+  ],
+  "related_adrs": [
+    "backend/adrs/0006-sdk-dependency-inversion.md",
+    "backend/adrs/0008-backend-direct-sdk-imports.md"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "backend unit tests for orchestrator/services run",
+      "when": "imports are resolved",
+      "then": "tests import from synextra.* and pass without wrapper modules"
+    },
+    {
+      "if": "streaming/chat API tests run",
+      "when": "schemas are imported",
+      "then": "chat request/response/event models resolve from synextra.schemas.rag_chat"
+    },
+    {
+      "if": "repository wrapper modules are deleted",
+      "when": "codebase is scanned",
+      "then": "no backend/src or backend/tests imports reference synextra_backend.services/retrieval/repositories/schemas.rag_chat/sdk"
+    }
+  ],
+  "tdd_test_matrix": [
+    {
+      "layer": "unit",
+      "focus": "service/schema import migration",
+      "cases": [
+        "test_rag_agent_orchestrator",
+        "test_block_chunker",
+        "test_document_store",
+        "test_pdf_ingestion"
+      ]
+    },
+    {
+      "layer": "api",
+      "focus": "contract stability",
+      "cases": [
+        "test_rag_chat_streaming",
+        "test_rag_persistence"
+      ]
+    },
+    {
+      "layer": "repo-scan",
+      "focus": "wrapper removal",
+      "cases": [
+        "rg scan for synextra_backend wrapper imports returns empty"
+      ]
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer:019c726a-6e85-71d2-b25c-67c75dc8f147",
+    "verdict": "approved",
+    "notes": [
+      "Adversarial diff-aware review found no regressions; API contracts, concurrency behavior, state scope, error handling, crash/restart semantics, and test coverage all remain unchanged because migration only rewired imports and removed thin wrappers."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-18T19:10:00Z",
+      "actor": "codex",
+      "entry": "Mapped all backend/src and backend/tests imports that still referenced synextra_backend compatibility wrappers."
+    },
+    {
+      "timestamp": "2026-02-18T19:20:00Z",
+      "actor": "codex",
+      "entry": "Migrated backend source/tests to direct synextra.* imports and removed wrapper-only modules under synextra_backend services/retrieval/repositories/schemas/sdk."
+    },
+    {
+      "timestamp": "2026-02-18T20:20:00Z",
+      "actor": "codex",
+      "entry": "Ran backend validation: buck2 run //:backend-lint (pass), buck2 run //:backend-typecheck (pass), buck2 run //:backend-test (76 passed)."
+    },
+    {
+      "timestamp": "2026-02-18T20:22:00Z",
+      "actor": "codex",
+      "entry": "Ran buck2 run //:check; backend/sdk/cli checks passed, but frontend tests failed in untouched files (components/chat/citation-accordion.test.tsx and components/chat/structured-message.test.tsx)."
+    },
+    {
+      "timestamp": "2026-02-18T20:24:00Z",
+      "actor": "explorer-subagent",
+      "entry": "Adversarial category-by-category review completed with no findings; migration judged safe."
+    },
+    {
+      "timestamp": "2026-02-18T20:25:00Z",
+      "actor": "codex",
+      "entry": "Updated AGENTS guidance to reflect direct backend imports from synextra and removed compatibility-wrapper assumptions."
+    }
+  ]
+}

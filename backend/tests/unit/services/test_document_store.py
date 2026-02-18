@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from synextra_backend.services.document_store import (
+from synextra.services.document_store import (
     DocumentStore,
     PageText,
     _format_numbered_lines,
     build_page_texts_from_blocks,
 )
-from synextra_backend.services.pdf_ingestion import PdfTextBlock
+from synextra.services.pdf_ingestion import PdfTextBlock
 
 
 def test_format_numbered_lines_basic() -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from synextra_backend.services.pdf_ingestion import extract_pdf_blocks
+from synextra.services.pdf_ingestion import extract_pdf_blocks
 
 
 def test_extract_pdf_blocks_reads_fixture() -> None:

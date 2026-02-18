@@ -1,12 +1,12 @@
 # Synextra Monorepo Agent Memory
 
 ## Repository Layout
-- `backend/`: FastAPI service managed with `uv`. Core business logic is now in `sdk/`; backend modules under `services/`, `retrieval/`, `repositories/`, and `schemas/` are compatibility wrappers that re-export from `synextra`.
+- `backend/`: FastAPI service managed with `uv`. Core business logic lives in `sdk/`, and backend code should import `synextra` directly. Backend-owned code is API wiring/adapters (`api/`, `app.py`, and HTTP-specific schemas/errors).
 - `sdk/`: Self-contained `synextra` Python package. Owns all ingestion, retrieval, and orchestration logic. Can be pip-installed independently of the backend.
 - `cli/`: Separate `synextra-cli` workspace. Depends on `sdk/` but is not part of it. Entrypoint: `cli/src/synextra_cli/main.py`.
 - `frontend/`: Next.js 16 + React 19 application.
 - `tools/buck/`: Buck2 orchestration scripts used by root Buck targets.
-- `backend/adrs/`: Architectural Decision Records for backend decisions (6 ADRs as of 2026-02-18).
+- `backend/adrs/`: Architectural Decision Records for backend decisions (9 ADRs as of 2026-02-18).
 - `sdk/adrs/`: SDK-specific ADRs.
 - `backend/tasks/`: Task JSON files tracking feature work.
 
@@ -36,6 +36,8 @@
   - Frontend: `buck2 run //:frontend-install`, `buck2 run //:frontend-lint`, `buck2 run //:frontend-test`, `buck2 run //:frontend-typecheck`, `buck2 run //:frontend-build`
 - When a task touches only one workspace, run that workspace's per-workspace targets first for fast feedback, then run `buck2 run //:check` before marking the task complete.
 - Pre-existing lint/typecheck failures in untouched workspaces do not excuse skipping workspace-level checks; run the affected workspace's targets independently and report results. Never claim a task complete if lint/typecheck regressions are introduced even alongside pre-existing failures.
+- Pre-commit is configured at repo root (`.pre-commit-config.yaml`); bootstrap with `uv tool install pre-commit && pre-commit install`.
+- Pre-commit hooks are always-run quality gates: formatter (`ruff format --check` across backend/sdk/cli), lint (`tools/pre-commit/run-lint.sh`), and tests (`tools/pre-commit/run-tests.sh`).
 
 ## Dependency Priming Rule
 - Before coding against external dependencies, use the `wit` skill/tool against upstream repos.
@@ -56,10 +58,10 @@
 
 ### SDK (`sdk/`)
 - The `synextra` package is the source of truth for all ingestion, retrieval, and orchestration logic.
-- Never add business logic to `backend/src/synextra_backend/{services,retrieval,repositories,schemas}/` — those are compatibility wrappers. Add logic to `sdk/src/synextra/` and import it through the wrapper.
+- Never add SDK business logic under `backend/src/synextra_backend/`; add it to `sdk/src/synextra/` and import `synextra.*` directly from backend code.
 - To verify no backend->SDK import inversion crept in: `grep -r "from synextra_backend" sdk/` must return nothing.
 - SDK tests live in `sdk/tests/`. Current coverage is minimal (happy path only). New SDK features require failure-mode tests, not just happy-path coverage.
-- After any SDK change: run `buck2 run //:sdk-test` and `buck2 run //:backend-test` (backend tests exercise SDK through wrappers).
+- After any SDK change: run `buck2 run //:sdk-test` and `buck2 run //:backend-test` (backend tests exercise SDK directly).
 
 ### CLI (`cli/`)
 - CLI code lives in `cli/src/synextra_cli/main.py`. It uses `synextra` SDK but has zero imports from `synextra_backend`.
@@ -111,7 +113,7 @@ For any async or background operation, the review must trace the full lifecycle:
 These classes of bug have appeared in this codebase. Reviews must explicitly check for them:
 
 1. **Python 2 exception syntax** — `except A, B:` instead of `except (A, B):`. Causes `SyntaxError` at import time; blocks all tests silently. Caught post-shipment in CLI workspace refactor.
-2. **Compatibility wrapper drift** — Adding logic to `backend/src/synextra_backend/{services,retrieval,...}` instead of `sdk/src/synextra/`. These files are shims; new logic belongs in SDK.
+2. **Backend/SDK boundary drift** — Adding reusable ingestion/retrieval/orchestration logic under `backend/src/synextra_backend/` instead of `sdk/src/synextra/`.
 3. **Blocking streaming on full collection** — Calling `collect_evidence()` to completion before yielding any bytes from `StreamingResponse`. Use async `event_sink` + `asyncio.Queue` so events stream live while retrieval runs.
 4. **Strict-schema tool parameters with `dict[str, Any]`** — `@function_tool` with `dict[str, Any]` args fails with `additionalProperties` errors when strict schema mode is active. Use typed Pydantic models.
 5. **Fix addressing symptom, not root cause** — Moving an in-memory guard to a TTL-decorated in-memory guard is not a cross-worker fix. Verification reviews must explicitly re-examine the root cause, not only the changed lines.
@@ -126,7 +128,7 @@ These classes of bug have appeared in this codebase. Reviews must explicitly che
 - Keep AGENTS files as high-signal operating memory only.
 - Store detailed technical explanations in `docs/` with citations.
 - Store architectural decisions in `adrs/` with alternatives considered.
-- Keep the SDK self-contained: `sdk/` owns ingestion/retrieval/orchestration logic, while `backend/` should consume it through compatibility wrappers instead of re-implementing core logic.
+- Keep the SDK self-contained: `sdk/` owns ingestion/retrieval/orchestration logic, and `backend/` should consume it through direct `synextra.*` imports instead of re-implementing core logic.
 - For coupled frontend/backend specs, maintain one canonical request/response contract.
 - Validate enum values and required fields stay in parity before marking planning tasks ready.
 - For diagnosis-only asks, explicitly separate analysis from implementation and state whether any fix was or was not applied.

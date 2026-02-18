@@ -1,1 +1,1 @@
-"""Repository implementations used by the service layer."""
+"""Legacy namespace retained after moving repository imports to `synextra.repositories`."""

@@ -22,8 +22,8 @@
 
 ## Backend Retrospective Reminders
 
-- Backend core ingestion/retrieval contracts are now compatibility wrappers over the standalone `synextra` SDK. Keep business logic in `sdk/` and avoid duplicating implementation under `backend/src/synextra_backend/{services,retrieval,repositories,schemas}`. Drift check: `grep -r "^def \|^class \|^async def " backend/src/synextra_backend/services/ backend/src/synextra_backend/retrieval/` — any non-trivial definition there is a signal that logic migrated to the wrong place.
-- When adding code to `backend/src/synextra_backend/{services,retrieval,repositories,schemas}/`, explicitly ask: should this live in `sdk/src/synextra/` instead? If the CLI or a future pip-installer might need it, it belongs in the SDK.
+- Backend depends on `synextra` directly; keep reusable ingestion/retrieval/orchestration logic in `sdk/src/synextra/` and avoid duplicating it under `backend/src/synextra_backend/`.
+- Drift check: `rg -n "from synextra_backend\\.(services|retrieval|repositories|schemas\\.rag_chat|sdk)" backend/src backend/tests` should return nothing.
 - For chat quality/format bugs, confirm the active answer path first (retrieval-agent output, optional review gate, or `_simple_summary` fallback) before changing text post-processing.
 - When changing default model IDs or generation settings, verify the model name against official provider docs before hardcoding.
 - For synthesis behavior changes, include regression tests for both retrieval-answer streaming and `_simple_summary` fallback paths, plus readability/format expectations.

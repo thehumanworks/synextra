@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from synextra_backend.services.block_chunker import chunk_pdf_blocks
-from synextra_backend.services.pdf_ingestion import PdfTextBlock
+from synextra.services.block_chunker import chunk_pdf_blocks
+from synextra.services.pdf_ingestion import PdfTextBlock
 
 
 def _block(page: int, block_no: int, text: str) -> PdfTextBlock:

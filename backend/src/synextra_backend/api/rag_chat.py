@@ -8,10 +8,10 @@ from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
+from synextra.schemas.rag_chat import RagChatRequest, RagChatResponse, StreamEvent
 from synextra.services.rag_agent_orchestrator import RagAgentOrchestrator
 
 from synextra_backend.schemas.errors import ApiErrorResponse, error_response
-from synextra_backend.schemas.rag_chat import RagChatRequest, RagChatResponse, StreamEvent
 
 _STREAM_METADATA_SEPARATOR = "\x1e"
 _STREAM_EVENTS_SEPARATOR = "\x1d"

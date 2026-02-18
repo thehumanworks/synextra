@@ -4,7 +4,7 @@ This module originally contained a small script snippet used during early
 experiments. The runtime snippet has been removed to avoid import-time side
 effects during application startup and test collection.
 
-The backend RAG implementation uses :mod:`synextra_backend.services` instead.
+The backend RAG implementation uses :mod:`synextra.services` instead.
 These helpers remain as a lightweight reference.
 """
 

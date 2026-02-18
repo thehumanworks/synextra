@@ -1,0 +1,23 @@
+minimum_pre_commit_version: "3.7.0"
+fail_fast: true
+repos:
+  - repo: local
+    hooks:
+      - id: format
+        name: format (ruff)
+        entry: tools/pre-commit/run-formatter.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: lint
+        name: lint
+        entry: tools/pre-commit/run-lint.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: test
+        name: test
+        entry: tools/pre-commit/run-tests.sh
+        language: system
+        pass_filenames: false
+        always_run: true

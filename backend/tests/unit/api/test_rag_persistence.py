@@ -3,12 +3,12 @@ from __future__ import annotations
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-
-from synextra_backend.api.rag_persistence import build_rag_persistence_router
-from synextra_backend.repositories.rag_document_repository import (
+from synextra.repositories.rag_document_repository import (
     ChunkRecord,
     InMemoryRagDocumentRepository,
 )
+
+from synextra_backend.api.rag_persistence import build_rag_persistence_router
 
 
 class _FakeEmbeddedPersistence:

@@ -4,20 +4,19 @@ import json
 from typing import Any
 
 import pytest
-
-from synextra_backend.repositories.rag_document_repository import InMemoryRagDocumentRepository
-from synextra_backend.retrieval.bm25_search import Bm25IndexStore
-from synextra_backend.retrieval.types import EvidenceChunk
-from synextra_backend.schemas.rag_chat import RagChatRequest
-from synextra_backend.services.document_store import DocumentStore, PageText
-from synextra_backend.services.rag_agent_orchestrator import (
+from synextra.repositories.rag_document_repository import InMemoryRagDocumentRepository
+from synextra.retrieval.bm25_search import Bm25IndexStore
+from synextra.retrieval.types import EvidenceChunk
+from synextra.schemas.rag_chat import RagChatRequest
+from synextra.services.document_store import DocumentStore, PageText
+from synextra.services.rag_agent_orchestrator import (
     AgentCallResult,
     JudgeVerdict,
     RagAgentOrchestrator,
     RetrievalResult,
     _simple_summary,
 )
-from synextra_backend.services.session_memory import SessionMemory
+from synextra.services.session_memory import SessionMemory
 
 
 @pytest.fixture(autouse=True)
@@ -131,7 +130,7 @@ async def test_synthesize_answer_is_programmatic(
         raise AssertionError("Runner.run must not be called for synthesis")
 
     monkeypatch.setattr(
-        "synextra_backend.services.rag_agent_orchestrator.Runner.run",
+        "synextra.services.rag_agent_orchestrator.Runner.run",
         staticmethod(_fail_run),
     )
 
@@ -386,7 +385,7 @@ async def test_stream_synthesis_yields_no_evidence_message() -> None:
 
 
 def test_chat_model_respects_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    from synextra_backend.services.rag_agent_orchestrator import _chat_model
+    from synextra.services.rag_agent_orchestrator import _chat_model
 
     assert _chat_model() == "gpt-5.2"
 
@@ -572,7 +571,7 @@ async def test_parallel_search_tool_returns_error_for_unknown_type() -> None:
 @pytest.mark.asyncio
 async def test_parallel_search_emits_events_to_collector() -> None:
     """parallel_search adds SearchEvent entries to the event_collector."""
-    from synextra_backend.schemas.rag_chat import SearchEvent
+    from synextra.schemas.rag_chat import SearchEvent
 
     orchestrator = _orchestrator()
 
@@ -615,7 +614,7 @@ async def test_judge_answer_returns_approved_on_good_response(
         return _FakeRunResult(final_output='{"approved": true}')
 
     monkeypatch.setattr(
-        "synextra_backend.services.rag_agent_orchestrator.Runner.run",
+        "synextra.services.rag_agent_orchestrator.Runner.run",
         staticmethod(_fake_run),
     )
 
@@ -648,7 +647,7 @@ async def test_judge_answer_returns_rejected_with_feedback(
         )
 
     monkeypatch.setattr(
-        "synextra_backend.services.rag_agent_orchestrator.Runner.run",
+        "synextra.services.rag_agent_orchestrator.Runner.run",
         staticmethod(_fake_run),
     )
 
@@ -677,7 +676,7 @@ async def test_judge_answer_approves_on_runner_failure(
         raise RuntimeError("Judge LLM unavailable")
 
     monkeypatch.setattr(
-        "synextra_backend.services.rag_agent_orchestrator.Runner.run",
+        "synextra.services.rag_agent_orchestrator.Runner.run",
         staticmethod(_fake_run),
     )
 
@@ -806,7 +805,7 @@ async def test_run_retrieval_with_review_emits_review_events(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Review events are emitted to event_collector for each judge evaluation."""
-    from synextra_backend.schemas.rag_chat import ReviewEvent
+    from synextra.schemas.rag_chat import ReviewEvent
 
     orchestrator = _orchestrator()
 
@@ -860,8 +859,8 @@ async def test_collect_evidence_returns_events_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """collect_evidence uses judge loop, returns (RetrievalResult, list[StreamEvent])."""
-    from synextra_backend.schemas.rag_chat import SearchEvent
-    from synextra_backend.services.rag_agent_orchestrator import JudgeVerdict
+    from synextra.schemas.rag_chat import SearchEvent
+    from synextra.services.rag_agent_orchestrator import JudgeVerdict
 
     orchestrator = _orchestrator()
 
@@ -905,7 +904,7 @@ async def test_collect_evidence_forwards_events_to_live_sink(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """collect_evidence forwards emitted events to the optional async event_sink."""
-    from synextra_backend.schemas.rag_chat import SearchEvent
+    from synextra.schemas.rag_chat import SearchEvent
 
     orchestrator = _orchestrator()
 
@@ -961,7 +960,7 @@ async def test_collect_evidence_returns_empty_events_on_no_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """collect_evidence returns only review event when no tool events were emitted."""
-    from synextra_backend.services.rag_agent_orchestrator import JudgeVerdict
+    from synextra.services.rag_agent_orchestrator import JudgeVerdict
 
     orchestrator = _orchestrator()
 
@@ -989,7 +988,7 @@ async def test_collect_evidence_returns_empty_events_on_no_tools(
 
 def test_search_event_serializes_correctly() -> None:
     """SearchEvent model serializes to the expected JSON format."""
-    from synextra_backend.schemas.rag_chat import SearchEvent
+    from synextra.schemas.rag_chat import SearchEvent
 
     event = SearchEvent(
         event="search",
@@ -1007,7 +1006,7 @@ def test_search_event_serializes_correctly() -> None:
 
 def test_review_event_serializes_correctly() -> None:
     """ReviewEvent model serializes to the expected JSON format."""
-    from synextra_backend.schemas.rag_chat import ReviewEvent
+    from synextra.schemas.rag_chat import ReviewEvent
 
     event = ReviewEvent(
         event="review",
@@ -1026,7 +1025,7 @@ def test_review_event_serializes_correctly() -> None:
 
 def test_reasoning_event_serializes_correctly() -> None:
     """ReasoningEvent model serializes to the expected JSON format."""
-    from synextra_backend.schemas.rag_chat import ReasoningEvent
+    from synextra.schemas.rag_chat import ReasoningEvent
 
     event = ReasoningEvent(
         event="reasoning",

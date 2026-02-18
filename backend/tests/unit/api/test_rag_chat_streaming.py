@@ -8,21 +8,21 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-
-from synextra_backend.api.rag_chat import (
-    _STREAM_EVENTS_SEPARATOR,
-    _STREAM_METADATA_SEPARATOR,
-    build_rag_chat_router,
-)
-from synextra_backend.schemas.rag_chat import (
+from synextra.schemas.rag_chat import (
     RagChatRequest,
     RagChatResponse,
     RagCitation,
     ReasoningEffort,
     SearchEvent,
 )
-from synextra_backend.services.rag_agent_orchestrator import RetrievalResult
-from synextra_backend.services.session_memory import SessionMemory
+from synextra.services.rag_agent_orchestrator import RetrievalResult
+from synextra.services.session_memory import SessionMemory
+
+from synextra_backend.api.rag_chat import (
+    _STREAM_EVENTS_SEPARATOR,
+    _STREAM_METADATA_SEPARATOR,
+    build_rag_chat_router,
+)
 
 
 class _FakeOrchestrator:
@@ -401,7 +401,7 @@ async def test_stream_events_separator_present_even_with_no_events() -> None:
 @pytest.mark.asyncio
 async def test_stream_multiple_events_are_newline_separated() -> None:
     """Multiple events appear as newline-delimited JSON before \\x1d."""
-    from synextra_backend.schemas.rag_chat import ReviewEvent
+    from synextra.schemas.rag_chat import ReviewEvent
 
     ts0 = "2024-01-01T00:00:00+00:00"
     ts1 = "2024-01-01T00:00:01+00:00"

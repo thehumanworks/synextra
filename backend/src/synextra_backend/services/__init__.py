@@ -1,1 +1,1 @@
-"""Service layer for document ingestion, persistence and chat orchestration."""
+"""Legacy namespace retained after moving service imports to `synextra.services`."""
