@@ -55,6 +55,18 @@
 - For unexplained Buck regressions after config/dependency edits, run `buck2 clean`, then `buck2 run //:install`, then `buck2 run //:check`.
 - Prefer `buck2 run //:dev` for local full-stack development instead of running backend/frontend manually in separate shells.
 - When logging setup or infra failures in task `execution_log`, include `buck2 --version`, Python runtime version, and Node runtime version for reproducibility.
+- Pre-existing backend lint/typecheck failures do not excuse skipping frontend checks. When `//:check` fails on backend files, run `buck2 run //:frontend-lint`, `buck2 run //:frontend-typecheck`, and `buck2 run //:frontend-test` independently and report results.
+- Targeted direct invocations for faster feedback:
+  - Lint: `cd frontend && npx eslint path/to/file.tsx`
+  - Typecheck: `cd frontend && npx tsc --noEmit`
+  - Single test file: `cd frontend && npx vitest run path/to/test.tsx`
+
+## Playwright and Visual Verification
+
+- Playwright is available via `npx playwright`. The skill wrapper (`playwright-cli`) may lag behind the actual CLI naming — if the wrapper fails, use `npx playwright@latest` commands directly.
+- For UI screenshots: `npx playwright screenshot --browser=chromium http://localhost:3000 output/playwright/screenshot.png`
+- Playwright must run against a live app (`buck2 run //:dev` started in a separate process) — it cannot verify statically built pages.
+- Do not mark streaming or citation UI changes as complete without a Playwright screenshot confirming the feature renders correctly. Static component tests alone are insufficient for streaming UX verification.
 
 ## Documentation and Architecture
 

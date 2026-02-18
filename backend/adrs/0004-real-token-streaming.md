@@ -13,12 +13,14 @@ For a responsive chat experience, answer tokens need to flow from OpenAI through
 
 Adopt a two-phase streaming architecture that separates retrieval (non-streamable) from synthesis (streamable):
 
-### Phase 1: Retrieval (non-streamed)
+### Phase 1: Retrieval (non-streamed answer generation)
 
-The new `collect_evidence()` method runs the existing agent tool-calling loop (`_call_agent`) or the manual retrieval fallback. This phase is inherently non-streamable because:
+The new `collect_evidence()` method runs the existing agent tool-calling loop (`_call_agent`) or the manual retrieval fallback. This phase does not stream answer tokens because:
 - Tool calls require multi-turn synchronous interactions with the OpenAI Responses API
 - Evidence must be fully collected before citations can be built
 - The agent's own answer text (a side effect of the tool-calling loop) is discarded
+
+Note: ADR 0007 later added live streaming of retrieval *events* (tool/review steps) during this phase via an event queue, while keeping answer-token streaming in phase 2.
 
 ### Phase 2: Synthesis (streamed token-by-token)
 

@@ -22,12 +22,14 @@
 
 ## Backend Retrospective Reminders
 
-- Backend core ingestion/retrieval contracts are now compatibility wrappers over the standalone `synextra` SDK. Keep business logic in `sdk/` and avoid duplicating implementation under `backend/src/synextra_backend/{services,retrieval,repositories,schemas}`.
+- Backend core ingestion/retrieval contracts are now compatibility wrappers over the standalone `synextra` SDK. Keep business logic in `sdk/` and avoid duplicating implementation under `backend/src/synextra_backend/{services,retrieval,repositories,schemas}`. Drift check: `grep -r "^def \|^class \|^async def " backend/src/synextra_backend/services/ backend/src/synextra_backend/retrieval/` — any non-trivial definition there is a signal that logic migrated to the wrong place.
+- When adding code to `backend/src/synextra_backend/{services,retrieval,repositories,schemas}/`, explicitly ask: should this live in `sdk/src/synextra/` instead? If the CLI or a future pip-installer might need it, it belongs in the SDK.
 - For chat quality/format bugs, confirm the active answer path first (retrieval-agent output, optional review gate, or `_simple_summary` fallback) before changing text post-processing.
 - When changing default model IDs or generation settings, verify the model name against official provider docs before hardcoding.
 - For synthesis behavior changes, include regression tests for both retrieval-answer streaming and `_simple_summary` fallback paths, plus readability/format expectations.
 - Do not conclude "fixed" from internal counters alone; validate the user-visible symptom with an integration path that mirrors real responses.
 - `rag_agent_orchestrator.py` uses the `openai-agents` SDK exclusively — no raw `OpenAI`/`AsyncOpenAI` clients. `_call_agent` uses `Runner.run_streamed` for retrieval, judge review is optional via `RagChatRequest.review_enabled`, and `stream_synthesis` streams programmatic chunks from `RetrievalResult.answer` (no second model call).
+- For live retrieval observability, propagate async `event_sink` callbacks through retrieval methods and emit search/review events as they happen. The streaming route bridges sink events through an `asyncio.Queue` and sentinel; keep pre-stream failures as JSON `500`, and treat post-event failures as in-stream fallback responses with `tools_used=["chat_failed"]`.
 - Tools for the agent loop are created as async `@function_tool` closures in `_create_agent_tools()` that collect evidence via a shared list. Closures are async to stay on the event loop (no thread-pool dispatch). Do not use `pydantic_function_tool` — the SDK generates schemas from type hints.
 - With strict function-tool schemas, avoid raw `dict[str, Any]` params in tool signatures. Use typed Pydantic models/unions and add a regression test for native structured payloads (not only JSON-encoded strings) to prevent `additionalProperties` schema failures.
 - After any retrieval/orchestrator edit, run both `uv --directory backend run pytest tests/unit/services/test_rag_agent_orchestrator.py` and `uv --directory backend run pytest tests/integration/test_rag_end_to_end.py`.
@@ -61,6 +63,11 @@
 - For unexplained Buck regressions after config/dependency edits, run `buck2 clean`, then `buck2 run //:install`, then `buck2 run //:check`.
 - Prefer `buck2 run //:dev` for local full-stack development instead of running backend/frontend manually in separate shells.
 - When logging setup or infra failures in task `execution_log`, include `buck2 --version`, Python runtime version, and Node runtime version for reproducibility.
+- Pre-existing lint/typecheck failures repo-wide do not justify skipping per-file checks on modified code. When `//:check` fails on untouched files, run `buck2 run //:backend-lint` and `buck2 run //:backend-typecheck` independently, report results, and fix any regressions introduced by the current change.
+- Targeted direct invocations for changed files (faster feedback loop during development):
+  - Lint a specific file: `uv --directory backend run ruff check path/to/file.py`
+  - Typecheck a specific module: `uv --directory backend run mypy path/to/file.py`
+  - Run specific test file: `uv --directory backend run pytest tests/path/to/test_file.py -v`
 
 ## Documentation and Architecture
 

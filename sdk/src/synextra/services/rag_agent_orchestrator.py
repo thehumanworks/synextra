@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -59,6 +59,7 @@ class ReadDocumentParallelQuery(BaseModel):
 
 
 ParallelQuery = Bm25ParallelQuery | ReadDocumentParallelQuery
+EventSink = Callable[[StreamEvent], Awaitable[None]]
 
 
 def _now_iso() -> str:
@@ -113,6 +114,18 @@ def _stream_chunks(text: str) -> list[str]:
 
 def _chat_model() -> str:
     return os.getenv("SYNEXTRA_CHAT_MODEL", _DEFAULT_CHAT_MODEL)
+
+
+async def _emit_stream_event(
+    event: StreamEvent,
+    *,
+    event_collector: list[StreamEvent] | None = None,
+    event_sink: EventSink | None = None,
+) -> None:
+    if event_collector is not None:
+        event_collector.append(event)
+    if event_sink is not None:
+        await event_sink(event)
 
 
 @dataclass(frozen=True)
@@ -313,6 +326,7 @@ Use the tools below to extract additional evidence from the documents.
         self,
         evidence_collector: list[EvidenceChunk],
         event_collector: list[StreamEvent] | None = None,
+        event_sink: EventSink | None = None,
     ) -> list[Any]:
         """Build async @function_tool closures that capture dependencies and collect evidence.
 
@@ -328,12 +342,16 @@ Use the tools below to extract additional evidence from the documents.
 
             Returns matching excerpts with page numbers and relevance scores.
             """
-            if event_collector is not None:
-                event_collector.append(
-                    SearchEvent(
-                        event="search", tool="bm25_search", query=query, timestamp=_now_iso()
-                    )
-                )
+            await _emit_stream_event(
+                SearchEvent(
+                    event="search",
+                    tool="bm25_search",
+                    query=query,
+                    timestamp=_now_iso(),
+                ),
+                event_collector=event_collector,
+                event_sink=event_sink,
+            )
             results = bm25_store.search(query=query, top_k=max(1, top_k))
             evidence_collector.extend(results)
             return json.dumps([asdict(r) for r in results])
@@ -350,12 +368,16 @@ Use the tools below to extract additional evidence from the documents.
             Pages are 0-indexed. Lines are 1-based.
             Omit start_line/end_line to read the full page.
             """
-            if event_collector is not None:
-                event_collector.append(
-                    SearchEvent(
-                        event="search", tool="read_document", page=page, timestamp=_now_iso()
-                    )
-                )
+            await _emit_stream_event(
+                SearchEvent(
+                    event="search",
+                    tool="read_document",
+                    page=page,
+                    timestamp=_now_iso(),
+                ),
+                event_collector=event_collector,
+                event_sink=event_sink,
+            )
             docs = document_store.list_documents()
             if not docs:
                 return json.dumps({"error": "No documents have been ingested yet"})
@@ -450,15 +472,16 @@ Use the tools below to extract additional evidence from the documents.
                 if item_type == "bm25_search":
                     query_str = str(item.get("query", ""))
                     top_k_val = int(item.get("top_k", 8))
-                    if event_collector is not None:
-                        event_collector.append(
-                            SearchEvent(
-                                event="search",
-                                tool="bm25_search",
-                                query=query_str,
-                                timestamp=_now_iso(),
-                            )
-                        )
+                    await _emit_stream_event(
+                        SearchEvent(
+                            event="search",
+                            tool="bm25_search",
+                            query=query_str,
+                            timestamp=_now_iso(),
+                        ),
+                        event_collector=event_collector,
+                        event_sink=event_sink,
+                    )
                     results = bm25_store.search(query=query_str, top_k=max(1, top_k_val))
                     evidence_collector.extend(results)
                     return [asdict(r) for r in results]
@@ -467,15 +490,16 @@ Use the tools below to extract additional evidence from the documents.
                     start_line_val: int | None = item.get("start_line")
                     end_line_val: int | None = item.get("end_line")
                     document_id_val: str | None = item.get("document_id")
-                    if event_collector is not None:
-                        event_collector.append(
-                            SearchEvent(
-                                event="search",
-                                tool="read_document",
-                                page=page_val,
-                                timestamp=_now_iso(),
-                            )
-                        )
+                    await _emit_stream_event(
+                        SearchEvent(
+                            event="search",
+                            tool="read_document",
+                            page=page_val,
+                            timestamp=_now_iso(),
+                        ),
+                        event_collector=event_collector,
+                        event_sink=event_sink,
+                    )
                     docs = document_store.list_documents()
                     if not docs:
                         return {"error": "No documents have been ingested yet"}
@@ -537,6 +561,7 @@ Use the tools below to extract additional evidence from the documents.
         reasoning_effort: ReasoningEffort,
         review_enabled: bool = False,
         event_collector: list[StreamEvent] | None = None,
+        event_sink: EventSink | None = None,
     ) -> OrchestratorResult:
         """Run retrieval once or with judge review, based on review_enabled."""
         if review_enabled:
@@ -544,11 +569,13 @@ Use the tools below to extract additional evidence from the documents.
                 prompt=prompt,
                 reasoning_effort=reasoning_effort,
                 event_collector=event_collector,
+                event_sink=event_sink,
             )
         return await self._run_retrieval_once(
             prompt=prompt,
             reasoning_effort=reasoning_effort,
             event_collector=event_collector,
+            event_sink=event_sink,
         )
 
     async def _run_retrieval_once(
@@ -557,6 +584,7 @@ Use the tools below to extract additional evidence from the documents.
         prompt: str,
         reasoning_effort: ReasoningEffort,
         event_collector: list[StreamEvent] | None = None,
+        event_sink: EventSink | None = None,
     ) -> OrchestratorResult:
         """Run retrieval in a single pass without judge review."""
         tools_used: list[str] = []
@@ -567,6 +595,7 @@ Use the tools below to extract additional evidence from the documents.
                 prompt=prompt,
                 reasoning_effort=reasoning_effort,
                 event_collector=event_collector,
+                event_sink=event_sink,
             )
             for tool in agent_result.tools_used:
                 self._append_unique(tools_used, tool)
@@ -642,6 +671,7 @@ Use the tools below to extract additional evidence from the documents.
         prompt: str,
         reasoning_effort: ReasoningEffort,
         event_collector: list[StreamEvent] | None = None,
+        event_sink: EventSink | None = None,
     ) -> AgentCallResult:
         """Run the retrieval agent via the OpenAI Agents SDK.
 
@@ -650,7 +680,11 @@ Use the tools below to extract additional evidence from the documents.
         tool usage from the streamed events.
         """
         collected_evidence: list[EvidenceChunk] = []
-        tools = self._create_agent_tools(collected_evidence, event_collector)
+        tools = self._create_agent_tools(
+            collected_evidence,
+            event_collector=event_collector,
+            event_sink=event_sink,
+        )
 
         agent: Agent = Agent(
             name="synextra_ai",
@@ -760,6 +794,7 @@ Use the tools below to extract additional evidence from the documents.
         prompt: str,
         reasoning_effort: ReasoningEffort,
         event_collector: list[StreamEvent] | None = None,
+        event_sink: EventSink | None = None,
     ) -> OrchestratorResult:
         """Run retrieval + judge loop with up to _MAX_JUDGE_ITERATIONS attempts."""
         tools_used: list[str] = []
@@ -772,6 +807,7 @@ Use the tools below to extract additional evidence from the documents.
                     prompt=current_prompt,
                     reasoning_effort=reasoning_effort,
                     event_collector=event_collector,
+                    event_sink=event_sink,
                 )
                 for tool in agent_result.tools_used:
                     self._append_unique(tools_used, tool)
@@ -792,16 +828,17 @@ Use the tools below to extract additional evidence from the documents.
                 citations=citations,
             )
 
-            if event_collector is not None:
-                event_collector.append(
-                    ReviewEvent(
-                        event="review",
-                        iteration=iteration,
-                        verdict="approved" if verdict.approved else "rejected",
-                        feedback=verdict.feedback if not verdict.approved else None,
-                        timestamp=_now_iso(),
-                    )
-                )
+            await _emit_stream_event(
+                ReviewEvent(
+                    event="review",
+                    iteration=iteration,
+                    verdict="approved" if verdict.approved else "rejected",
+                    feedback=verdict.feedback if not verdict.approved else None,
+                    timestamp=_now_iso(),
+                ),
+                event_collector=event_collector,
+                event_sink=event_sink,
+            )
 
             if verdict.approved:
                 validation = self._citation_validator.validate(citations)
@@ -863,6 +900,7 @@ Use the tools below to extract additional evidence from the documents.
         *,
         session_id: str,
         request: RagChatRequest,
+        event_sink: EventSink | None = None,
     ) -> tuple[RetrievalResult, list[StreamEvent]]:
         """Run retrieval (with optional judge review). Returns evidence + events.
 
@@ -886,6 +924,7 @@ Use the tools below to extract additional evidence from the documents.
             reasoning_effort=reasoning_effort,
             review_enabled=request.review_enabled,
             event_collector=event_collector,
+            event_sink=event_sink,
         )
 
         retrieval = RetrievalResult(

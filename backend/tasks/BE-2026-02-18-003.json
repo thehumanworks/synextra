@@ -1,0 +1,166 @@
+{
+  "task_id": "BE-2026-02-18-003",
+  "feature_branch": "feature/live-retrieval-event-streaming",
+  "description": "Stream agent intermediate retrieval steps to the UI in real time by emitting tool/review events during retrieval instead of buffering events until end-of-turn.",
+  "bdd_flows": [
+    {
+      "title": "Live tool-step visibility",
+      "given": "the retrieval agent is running tool calls",
+      "when": "each search/read/review event is produced",
+      "then": "the stream endpoint emits the event immediately in the pre-answer events phase"
+    },
+    {
+      "title": "Backward-compatible stream framing",
+      "given": "a streamed chat response",
+      "when": "events, answer text, and metadata are sent",
+      "then": "the protocol remains JSON-line events before \\x1d, answer tokens after \\x1d, and metadata after \\x1e"
+    },
+    {
+      "title": "Failure handling after stream start",
+      "given": "retrieval fails after at least one event has already streamed",
+      "when": "the stream endpoint is still active",
+      "then": "the endpoint completes with fallback assistant text and metadata tools_used=[\"chat_failed\"]"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "openai-agents",
+      "repository": "https://github.com/openai/openai-agents-python",
+      "purpose": "queue/sentinel event streaming patterns and Runner.run_streamed event semantics"
+    },
+    {
+      "name": "starlette",
+      "repository": "https://github.com/Kludex/starlette",
+      "purpose": "StreamingResponse async-iterator behavior and streaming response semantics"
+    },
+    {
+      "name": "langgraph",
+      "repository": "https://github.com/langchain-ai/langgraph",
+      "purpose": "queue-backed producer/consumer stream decoupling reference patterns"
+    }
+  ],
+  "target_files": [
+    "sdk/src/synextra/services/rag_agent_orchestrator.py",
+    "backend/src/synextra_backend/api/rag_chat.py",
+    "backend/tests/unit/services/test_rag_agent_orchestrator.py",
+    "backend/tests/unit/api/test_rag_chat_streaming.py",
+    "backend/adrs/0007-live-retrieval-event-streaming.md",
+    "backend/AGENTS.md",
+    "AGENTS.md"
+  ],
+  "related_adrs": [
+    "backend/adrs/0004-real-token-streaming.md",
+    "backend/adrs/0007-live-retrieval-event-streaming.md"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "collect_evidence returns no events in its return tuple but emits sink events",
+      "when": "the stream endpoint responds",
+      "then": "events still appear in phase-1 stream output"
+    },
+    {
+      "if": "retrieval fails before any event is emitted",
+      "when": "stream endpoint is called",
+      "then": "endpoint returns JSON 500 with chat_failed envelope"
+    },
+    {
+      "if": "retrieval fails after event emission has started",
+      "when": "stream endpoint is called",
+      "then": "stream includes the emitted events, separator, fallback answer text, and metadata tools_used=[\"chat_failed\"]"
+    }
+  ],
+  "tdd_test_matrix": [
+    {
+      "layer": "unit",
+      "focus": "orchestrator event sink propagation",
+      "cases": [
+        "backend/tests/unit/services/test_rag_agent_orchestrator.py::test_collect_evidence_forwards_events_to_live_sink"
+      ]
+    },
+    {
+      "layer": "integration",
+      "focus": "end-to-end RAG behavior unchanged while streaming protocol remains valid",
+      "cases": [
+        "backend/tests/integration/test_rag_end_to_end.py"
+      ]
+    },
+    {
+      "layer": "edge",
+      "focus": "streaming route event-source and failure-mode handling",
+      "cases": [
+        "backend/tests/unit/api/test_rag_chat_streaming.py::test_stream_uses_event_sink_even_when_collect_evidence_event_list_is_empty",
+        "backend/tests/unit/api/test_rag_chat_streaming.py::test_stream_handles_retrieval_failure_after_events_have_started"
+      ]
+    },
+    {
+      "layer": "frontend_backend_contract",
+      "focus": "three-phase separator contract compatibility",
+      "cases": [
+        "backend/tests/unit/api/test_rag_chat_streaming.py"
+      ]
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer:019c723c-f267-74c1-9b89-68e13aadc772",
+    "verdict": "approved",
+    "notes": [
+      "Adversarial diff-aware review completed with explicit category-by-category reasoning.",
+      "Reviewer verified API contract intent, queue/sentinel concurrency safety, state scope, error-path completeness, crash semantics, and test fidelity.",
+      "No additional defects were found; reviewer explicitly confirmed no deadlock/duplicate-event regressions and preserved pre-stream JSON 500 behavior."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-18T19:05:00Z",
+      "actor": "codex",
+      "entry": "Used wit to inspect openai/openai-agents-python, Kludex/starlette, and langchain-ai/langgraph streaming/event-queue patterns and reconciled them with local three-phase stream framing."
+    },
+    {
+      "timestamp": "2026-02-18T19:12:00Z",
+      "actor": "codex",
+      "entry": "Added failing tests for live sink-based event emission and post-start retrieval failure fallback in stream endpoint; added failing orchestrator sink-forwarding unit test."
+    },
+    {
+      "timestamp": "2026-02-18T19:20:00Z",
+      "actor": "codex",
+      "entry": "Implemented async event_sink propagation through retrieval/orchestrator layers and queue-backed live event emission in FastAPI streaming route with sentinel termination."
+    },
+    {
+      "timestamp": "2026-02-18T19:24:00Z",
+      "actor": "codex",
+      "entry": "Added ADR 0007 and updated durable AGENTS guidance for live retrieval event streaming and post-start failure semantics."
+    },
+    {
+      "timestamp": "2026-02-18T19:25:00Z",
+      "actor": "codex",
+      "entry": "Moved task status to review and triggered mandatory adversarial subagent review."
+    },
+    {
+      "timestamp": "2026-02-18T19:30:00Z",
+      "actor": "explorer-subagent",
+      "entry": "Completed adversarial review with explicit mandatory category analysis; approved with no new findings."
+    },
+    {
+      "timestamp": "2026-02-18T19:31:00Z",
+      "actor": "codex",
+      "entry": "Validation: backend unit stream tests pass, backend orchestrator unit tests pass, backend integration end-to-end tests pass."
+    },
+    {
+      "timestamp": "2026-02-18T19:31:30Z",
+      "actor": "codex",
+      "entry": "Workspace check: buck2 run //:check failed due pre-existing unrelated frontend test failures in citation accordion/structured message tests; backend and sdk scoped checks passed via buck2 run //:backend-{lint,typecheck,test} and //:sdk-{lint,typecheck,test}."
+    },
+    {
+      "timestamp": "2026-02-18T19:32:00Z",
+      "actor": "codex",
+      "entry": "Moved status to done after approved subagent review and successful backend/sdk validation."
+    }
+  ]
+}

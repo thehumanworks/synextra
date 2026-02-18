@@ -901,6 +901,62 @@ async def test_collect_evidence_returns_events_list(
 
 
 @pytest.mark.asyncio
+async def test_collect_evidence_forwards_events_to_live_sink(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """collect_evidence forwards emitted events to the optional async event_sink."""
+    from synextra_backend.schemas.rag_chat import SearchEvent
+
+    orchestrator = _orchestrator()
+
+    async def _fake_run_retrieval(**kwargs: Any) -> Any:
+        event_collector = kwargs.get("event_collector")
+        event_sink = kwargs.get("event_sink")
+        event = SearchEvent(
+            event="search",
+            tool="bm25_search",
+            query="sink-test",
+            timestamp="2024-01-01T00:00:00+00:00",
+        )
+        if event_collector is not None:
+            event_collector.append(event)
+        if event_sink is not None:
+            await event_sink(event)
+        return type(
+            "_Result",
+            (),
+            {
+                "answer": "Answer.",
+                "evidence": [_chunk(chunk_id="c1", text="Evidence.")],
+                "citations": orchestrator._build_citations(
+                    [_chunk(chunk_id="c1", text="Evidence.")]
+                ),
+                "tools_used": ["bm25_search"],
+            },
+        )()
+
+    monkeypatch.setattr(orchestrator, "_run_retrieval", _fake_run_retrieval)
+
+    sink_events: list[Any] = []
+
+    async def _event_sink(event: Any) -> None:
+        sink_events.append(event)
+
+    request = RagChatRequest(prompt="What?", retrieval_mode="hybrid", review_enabled=False)
+    _result, events = await orchestrator.collect_evidence(
+        session_id="s1",
+        request=request,
+        event_sink=_event_sink,
+    )
+
+    assert len(events) == 1
+    assert events[0].event == "search"
+    assert len(sink_events) == 1
+    assert sink_events[0].event == "search"
+    assert sink_events[0].query == "sink-test"
+
+
+@pytest.mark.asyncio
 async def test_collect_evidence_returns_empty_events_on_no_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

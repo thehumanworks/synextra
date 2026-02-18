@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 import pytest
@@ -32,11 +33,15 @@ class _FakeOrchestrator:
         citations: list[RagCitation] | None = None,
         should_raise: bool = False,
         stream_events: list[Any] | None = None,
+        return_events_in_collect_result: bool = True,
+        raise_after_stream_events: bool = False,
     ) -> None:
         self._tokens = tokens or ["Hello", " world", "!"]
         self._citations = citations or []
         self._should_raise = should_raise
         self._stream_events = stream_events or []
+        self._return_events_in_collect_result = return_events_in_collect_result
+        self._raise_after_stream_events = raise_after_stream_events
         self._session_memory = SessionMemory()
         self.collect_evidence_calls: list[tuple[str, RagChatRequest]] = []
 
@@ -53,18 +58,33 @@ class _FakeOrchestrator:
         )
 
     async def collect_evidence(
-        self, *, session_id: str, request: RagChatRequest
+        self,
+        *,
+        session_id: str,
+        request: RagChatRequest,
+        event_sink: Callable[[Any], Awaitable[None]] | None = None,
     ) -> tuple[RetrievalResult, list[Any]]:
-        if self._should_raise:
+        if self._should_raise and not self._raise_after_stream_events:
             raise RuntimeError("stream failed")
         self.collect_evidence_calls.append((session_id, request))
+
+        if event_sink is not None:
+            for event in self._stream_events:
+                await event_sink(event)
+                await asyncio.sleep(0)
+
+        if self._should_raise and self._raise_after_stream_events:
+            raise RuntimeError("stream failed after events")
+
         retrieval = RetrievalResult(
             answer="".join(self._tokens),
             evidence=[],
             citations=self._citations,
             tools_used=["bm25_search"],
         )
-        return retrieval, self._stream_events
+        if self._return_events_in_collect_result:
+            return retrieval, self._stream_events
+        return retrieval, []
 
     async def stream_synthesis(
         self,
@@ -225,6 +245,77 @@ async def test_stream_returns_json_error_on_retrieval_failure() -> None:
     body = response.json()
     assert body["error"]["code"] == "chat_failed"
     assert body["error"]["recoverable"] is True
+
+
+@pytest.mark.asyncio
+async def test_stream_uses_event_sink_even_when_collect_evidence_event_list_is_empty() -> None:
+    """Events are streamed from the live sink, not only from collect_evidence return values."""
+    events = [
+        SearchEvent(
+            event="search",
+            tool="bm25_search",
+            query="live-event",
+            timestamp="2024-01-01T00:00:00+00:00",
+        ),
+    ]
+    orchestrator = _FakeOrchestrator(
+        tokens=["Answer."],
+        stream_events=events,
+        return_events_in_collect_result=False,
+    )
+    app = FastAPI()
+    app.state.rag_orchestrator = orchestrator
+    app.include_router(build_rag_chat_router())
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/v1/rag/sessions/live-events/messages/stream",
+            json={"prompt": "hello"},
+        )
+
+    assert response.status_code == 200
+    parsed_events, answer, _metadata = _parse_stream_body(response.text)
+    assert len(parsed_events) == 1
+    assert parsed_events[0]["tool"] == "bm25_search"
+    assert parsed_events[0]["query"] == "live-event"
+    assert answer == "Answer."
+
+
+@pytest.mark.asyncio
+async def test_stream_handles_retrieval_failure_after_events_have_started() -> None:
+    """If retrieval fails after events were emitted, stream ends with fallback answer + metadata."""
+    events = [
+        SearchEvent(
+            event="search",
+            tool="bm25_search",
+            query="live-event",
+            timestamp="2024-01-01T00:00:00+00:00",
+        ),
+    ]
+    orchestrator = _FakeOrchestrator(
+        should_raise=True,
+        raise_after_stream_events=True,
+        stream_events=events,
+    )
+    app = FastAPI()
+    app.state.rag_orchestrator = orchestrator
+    app.include_router(build_rag_chat_router())
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/v1/rag/sessions/live-events-fail/messages/stream",
+            json={"prompt": "hello"},
+        )
+
+    assert response.status_code == 200
+    parsed_events, answer, metadata = _parse_stream_body(response.text)
+    assert len(parsed_events) == 1
+    assert parsed_events[0]["tool"] == "bm25_search"
+    assert "internal error" in answer
+    assert metadata["tools_used"] == ["chat_failed"]
+    assert metadata["citations"] == []
 
 
 @pytest.mark.asyncio

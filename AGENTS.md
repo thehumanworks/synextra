@@ -1,9 +1,14 @@
 # Synextra Monorepo Agent Memory
 
 ## Repository Layout
-- `backend/`: FastAPI service managed with `uv`.
+- `backend/`: FastAPI service managed with `uv`. Core business logic is now in `sdk/`; backend modules under `services/`, `retrieval/`, `repositories/`, and `schemas/` are compatibility wrappers that re-export from `synextra`.
+- `sdk/`: Self-contained `synextra` Python package. Owns all ingestion, retrieval, and orchestration logic. Can be pip-installed independently of the backend.
+- `cli/`: Separate `synextra-cli` workspace. Depends on `sdk/` but is not part of it. Entrypoint: `cli/src/synextra_cli/main.py`.
 - `frontend/`: Next.js 16 + React 19 application.
 - `tools/buck/`: Buck2 orchestration scripts used by root Buck targets.
+- `backend/adrs/`: Architectural Decision Records for backend decisions (6 ADRs as of 2026-02-18).
+- `sdk/adrs/`: SDK-specific ADRs.
+- `backend/tasks/`: Task JSON files tracking feature work.
 
 ## Build Orchestration
 - Root Buck2 configuration uses bundled prelude (`.buckconfig` with `[external_cells] prelude = bundled`).
@@ -16,18 +21,26 @@
 - For unexplained Buck regressions after recent config/dependency edits, run `buck2 clean`, then `buck2 run //:install`, then `buck2 run //:check`.
 - Prefer `buck2 run //:dev` over manually starting backend/frontend in separate shells so process lifecycle and shutdown behavior match workspace standards.
 - When recording setup or infra failures in task `execution_log`, include versions for `buck2`, Python runtime, and Node runtime for reproducibility.
-- Preferred entry points:
+- Workspace-wide entry points (run across all workspaces: backend, sdk, cli, frontend):
   - `buck2 run //:install`
   - `buck2 run //:lint`
   - `buck2 run //:test`
   - `buck2 run //:typecheck`
   - `buck2 run //:build`
-  - `buck2 run //:check`
+  - `buck2 run //:check` (lint + typecheck + test + build for all workspaces)
   - `buck2 run //:dev` (runs backend + frontend together)
+- Per-workspace targets for isolated checks (prefer these when only one workspace changed, to avoid running the full suite unnecessarily):
+  - Backend: `buck2 run //:backend-install`, `buck2 run //:backend-lint`, `buck2 run //:backend-test`, `buck2 run //:backend-typecheck`
+  - SDK: `buck2 run //:sdk-install`, `buck2 run //:sdk-lint`, `buck2 run //:sdk-test`, `buck2 run //:sdk-typecheck`
+  - CLI: `buck2 run //:cli-install`, `buck2 run //:cli-lint`, `buck2 run //:cli-test`, `buck2 run //:cli-typecheck`
+  - Frontend: `buck2 run //:frontend-install`, `buck2 run //:frontend-lint`, `buck2 run //:frontend-test`, `buck2 run //:frontend-typecheck`, `buck2 run //:frontend-build`
+- When a task touches only one workspace, run that workspace's per-workspace targets first for fast feedback, then run `buck2 run //:check` before marking the task complete.
+- Pre-existing lint/typecheck failures in untouched workspaces do not excuse skipping workspace-level checks; run the affected workspace's targets independently and report results. Never claim a task complete if lint/typecheck regressions are introduced even alongside pre-existing failures.
 
 ## Dependency Priming Rule
 - Before coding against external dependencies, use the `wit` skill/tool against upstream repos.
 - Treat local code + upstream findings as a pair; reconcile conflicts explicitly.
+- IMPORTANT: There is a binary named `wit` at `/Users/mish/.cargo/bin/wit` (the WIT package tool for WebAssembly). This is NOT the repo-explorer skill. When `wit` fails or produces unexpected output, check `which wit` — if it resolves to the Cargo binary, the skill is not installed as a shell command in this environment. Fall back to web search or local code reading for upstream research, and document this in the task `execution_log`.
 
 ## Task Process (Global)
 - Task files are JSON and must include continuous `execution_log` updates.
@@ -36,7 +49,24 @@
   - subagent review completed and addressed
   - lint, typecheck, and tests passing
 - Every task that introduces an architectural decision must produce an ADR in `{module}/adrs/` with at least two alternatives considered. No exceptions.
-- Every backend/frontend task must produce a task JSON in the appropriate `tasks/` directory. Missing task JSON is a process violation.
+- Every backend/frontend/sdk/cli task must produce a task JSON in the appropriate `tasks/` directory. Missing task JSON is a process violation.
+- SDK tasks: create task JSON in `backend/tasks/` using the `BE-YYYY-MM-DD-NNN.json` naming convention (sdk tasks are tracked alongside backend tasks since the SDK is the source of truth for backend logic).
+
+## Workspace-Specific Conventions
+
+### SDK (`sdk/`)
+- The `synextra` package is the source of truth for all ingestion, retrieval, and orchestration logic.
+- Never add business logic to `backend/src/synextra_backend/{services,retrieval,repositories,schemas}/` — those are compatibility wrappers. Add logic to `sdk/src/synextra/` and import it through the wrapper.
+- To verify no backend->SDK import inversion crept in: `grep -r "from synextra_backend" sdk/` must return nothing.
+- SDK tests live in `sdk/tests/`. Current coverage is minimal (happy path only). New SDK features require failure-mode tests, not just happy-path coverage.
+- After any SDK change: run `buck2 run //:sdk-test` and `buck2 run //:backend-test` (backend tests exercise SDK through wrappers).
+
+### CLI (`cli/`)
+- CLI code lives in `cli/src/synextra_cli/main.py`. It uses `synextra` SDK but has zero imports from `synextra_backend`.
+- CLI tests live in `cli/tests/test_cli_smoke.py`. The CLI module must be importable before any test can run — syntax errors in `main.py` silently block all CLI tests.
+- After any CLI change: run `python -c "import synextra_cli.main"` before running `buck2 run //:cli-test` to catch import-time failures early.
+- Python exception syntax: always use `except (ExcType1, ExcType2):` with parentheses. The legacy `except ExcType1, ExcType2:` syntax (Python 2) is a SyntaxError in Python 3 and will break CLI module import entirely — this was caught in review after the CLI workspace was created.
+- Verify CLI smoke run after any CLI or SDK change: `PYTHONWARNINGS=ignore uv --directory cli run synextra ingest <path/to/pdf> --json`
 
 ## Subagent Review Protocol (Mandatory)
 
@@ -74,6 +104,17 @@ For any async or background operation, the review must trace the full lifecycle:
 2. What happens on success (where is the result stored, how does the caller learn of it).
 3. What happens on failure (is the error stored, is the guard released, can it be retried, is a `status=error` state observable).
 4. What happens if the process dies mid-operation (what state is lost, what is the recovery path).
+
+## Known Defect Classes (Checked in Every Review)
+
+These classes of bug have appeared in this codebase. Reviews must explicitly check for them:
+
+1. **Python 2 exception syntax** — `except A, B:` instead of `except (A, B):`. Causes `SyntaxError` at import time; blocks all tests silently. Caught post-shipment in CLI workspace refactor.
+2. **Compatibility wrapper drift** — Adding logic to `backend/src/synextra_backend/{services,retrieval,...}` instead of `sdk/src/synextra/`. These files are shims; new logic belongs in SDK.
+3. **Blocking streaming on full collection** — Calling `collect_evidence()` to completion before yielding any bytes from `StreamingResponse`. Use async `event_sink` + `asyncio.Queue` so events stream live while retrieval runs.
+4. **Strict-schema tool parameters with `dict[str, Any]`** — `@function_tool` with `dict[str, Any]` args fails with `additionalProperties` errors when strict schema mode is active. Use typed Pydantic models.
+5. **Fix addressing symptom, not root cause** — Moving an in-memory guard to a TTL-decorated in-memory guard is not a cross-worker fix. Verification reviews must explicitly re-examine the root cause, not only the changed lines.
+6. **Pre-existing lint failures used to justify skipping checks** — Running workspace-wide lint/typecheck and encountering pre-existing failures is not a reason to skip checks on modified files. Run per-file or per-workspace targets; report results separately.
 
 ## Self-Learning and Continuous Improvement
 - After completing a task that exposes a new failure mode, coding pattern, or architectural insight, update the relevant AGENTS.md section before handoff. AGENTS.md is operating memory for future sessions — stale memory causes repeated mistakes.
@@ -124,6 +165,7 @@ For any async or background operation, the review must trace the full lifecycle:
 - `parallel_search` is a third `@function_tool` that accepts a JSON array of `{"type": "bm25_search"|"read_document", ...}` descriptors and runs them concurrently via `asyncio.gather`. The agent instructions document it alongside `bm25_search` and `read_document`.
 - For `@function_tool` schemas, avoid `dict[str, Any]` parameters in strict mode; use typed Pydantic models/unions and regression-test native structured payloads (`on_invoke_tool` with list/dict input), or the SDK can reject schemas with `additionalProperties` errors.
 - Streaming protocol now has three phases: (1) JSON-line events before `\x1d` (Group Separator), (2) answer tokens after `\x1d` and before `\x1e`, (3) metadata trailer after `\x1e`. Events include `SearchEvent`, `ReasoningEvent`, and `ReviewEvent` schemas in `schemas/rag_chat.py`.
+- `/messages/stream` now pushes retrieval events live via an async `event_sink` + queue bridge while `collect_evidence` runs; if retrieval fails before any event bytes are emitted the route returns JSON `500`, but if failure occurs after event streaming starts the route finishes the stream with fallback assistant text and metadata `tools_used=["chat_failed"]`.
 - Frontend `splitStreamedText()` in `lib/chat/stream-metadata.ts` parses all three phases and returns `{text, citations, events}`. The `ThinkingPanel` component in `components/chat/thinking-panel.tsx` renders events as a collapsible timeline above the answer.
 - `ShaderBackground` in `components/ui/shader-background.tsx` uses raw WebGL with FBM noise for a subtle animated background. Alpha is ~0.055; cleanup is via `cancelAnimationFrame` + `ResizeObserver.disconnect` + GL resource deletion.
 - `GeistPixelSquare` from `geist/font/pixel` is used for the title. The `title-gradient-text` CSS class provides a white→electric blue→cyan gradient with drop-shadow glow.
