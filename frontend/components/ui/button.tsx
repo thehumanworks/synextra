@@ -12,10 +12,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow hover:brightness-95 active:scale-[0.99]",
+          "bg-gradient-to-r from-stone-200 via-stone-300 to-stone-400 text-black shadow hover:brightness-95 active:scale-[0.99]",
         outline:
-          "bg-white/5 text-foreground ring-1 ring-white/10 hover:bg-white/8",
-        ghost: "text-foreground hover:bg-white/6",
+          "bg-zinc-900 text-stone-200 ring-1 ring-stone-500/45 hover:bg-zinc-800",
+        ghost: "bg-black text-stone-200 hover:bg-zinc-900",
+        destructive: "bg-black text-stone-200 ring-1 ring-stone-500 hover:bg-zinc-900",
       },
       size: {
         default: "h-10 px-4 py-2",

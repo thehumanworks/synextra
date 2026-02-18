@@ -4,18 +4,17 @@
 @source "../node_modules/streamdown/dist/*.js";
 
 :root {
-  /* Dark-mode-first tokens */
-  --background: #050505;
-  --foreground: #f5f5f4;
-  --card: rgba(255, 255, 255, 0.06);
-  --card-foreground: #f5f5f4;
-  --primary: #2dd4bf;
-  --primary-foreground: #042f2e;
-  --secondary: rgba(255, 255, 255, 0.08);
-  --secondary-foreground: #f5f5f4;
-  --border: rgba(255, 255, 255, 0.14);
-  --input: rgba(255, 255, 255, 0.06);
-  --ring: rgba(255, 255, 255, 0.18);
+  --background: #000000;
+  --foreground: #e7e5e4;
+  --card: #0a0a0a;
+  --card-foreground: #e7e5e4;
+  --primary: #d6d3d1;
+  --primary-foreground: #09090b;
+  --secondary: #111111;
+  --secondary-foreground: #d6d3d1;
+  --border: #78716c;
+  --input: #111111;
+  --ring: #a8a29e;
   --radius: 0.8rem;
 }
 
@@ -40,10 +39,19 @@
 }
 
 body {
-  background:
-    radial-gradient(circle at 12% 10%, rgba(168, 162, 158, 0.22) 0%, transparent 42%),
-    radial-gradient(circle at 86% 78%, rgba(45, 212, 191, 0.14) 0%, transparent 46%),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+::selection {
+  background: rgba(214, 211, 209, 0.3);
+  color: #f5f5f4;
+}
+
+.stone-gradient-text {
+  background-image: linear-gradient(120deg, #fafaf9 0%, #d6d3d1 48%, #78716c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

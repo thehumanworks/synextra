@@ -22,9 +22,8 @@ const codeFont = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Synextra RAG Playground",
-  description:
-    "A dark-first RAG demo UI with retrieval mode selection and citation-aware messages.",
+  title: "Synextra",
+  description: "Chat with your documents.",
 };
 
 export default function RootLayout({

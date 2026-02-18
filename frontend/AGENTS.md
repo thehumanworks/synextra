@@ -25,7 +25,12 @@
 - For UI rendering bugs tied to assistant output, inspect and document the backend payload shape/runtime mode before treating it as a frontend-only issue.
 - If `structured-response` falls back to raw text, call this out early in diagnosis and verify whether malformed formatting originates upstream.
 - For Streamdown/AI Elements markdown rendering, keep `@import "katex/dist/katex.min.css"`, `@import "streamdown/styles.css"`, and `@source "../node_modules/streamdown/dist/*.js"` in `app/globals.css`; missing any of these causes broken markdown/math styling.
+- With `useChat` + `TextStreamChatTransport`, custom backends should return plain streamed text (`text/plain`) rather than UI-message SSE parts; use default transport only when emitting the full AI SDK UI-message stream protocol and headers.
 - For citation-dedupe/render fixes, add tests that cover near-duplicate citation payloads, not only exact duplicate ids.
+- For citation cards, do not expose raw chunk/document UUID-like ids as body text; keep source UI human-readable (`Page N`, title/link, quote, source tool).
+- Keep the sources panel collapsed by default and preserve `motion`-based expand/collapse behavior; include tests for both closed and opened states.
+- Frontend chat/upload routes must continue sending `retrieval_mode: "hybrid"` (runtime policy), even though shared schemas still accept `embedded|vector|hybrid` for compatibility.
+- For structured citation renderer changes, include a mixed-source fixture (`bm25_search` + `openai_vector_store_search`) so source labeling/regression is caught in component tests.
 - Do not mark UI issues resolved from backend metrics alone; confirm in a real UI flow (component/integration/Playwright/manual repro).
 - Before handoff, run frontend lint, typecheck, and tests (or explicitly report which checks were intentionally skipped).
 

@@ -15,7 +15,13 @@ describe("AiMessageBubble", () => {
     render(<AiMessageBubble role="assistant" text="World" />);
 
     const bubble = screen.getByText("assistant").parentElement;
-    expect(bubble?.className).toContain("bg-white/5");
+    expect(bubble?.className).toContain("bg-black");
+  });
+
+  it("renders markdown for assistant responses", () => {
+    render(<AiMessageBubble role="assistant" text={"# Heading\n\nSome text"} />);
+
+    expect(screen.getByRole("heading", { name: "Heading" })).toBeInTheDocument();
   });
 
   it("handles unknown roles without crashing", () => {

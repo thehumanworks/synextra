@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 
+from openai import OpenAI
+
 from synextra_backend.retrieval.types import EvidenceChunk
 
 
@@ -9,16 +11,7 @@ class OpenAIFileSearch:
     """Vector-store semantic search using OpenAI's Retrieval API."""
 
     def __init__(self) -> None:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY is not configured")
-
-        try:
-            from openai import OpenAI  # type: ignore
-        except Exception as exc:  # pragma: no cover
-            raise RuntimeError("OpenAI SDK is not installed") from exc
-
-        self._client = OpenAI()
+        self._client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     def search(
         self,

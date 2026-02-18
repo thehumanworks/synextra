@@ -47,14 +47,18 @@
 - When users report "still seeing the same issue," re-run the live repro immediately and reassess root cause before layering more patches.
 - For cross-stack edits, run repo-standard validation (`buck2 run //:lint`, `buck2 run //:typecheck`, `buck2 run //:test` or `buck2 run //:check`) unless the user explicitly scopes checks down; report skipped checks.
 - Before handoff, run a self-review on the diff to catch residual regressions, edge cases, and mismatches with the user's stated intent.
+- `buck2 run //:messages` (`mmr`/DuckDB-backed) is not safe to run in parallel; fetch multiple session IDs sequentially to avoid lock conflicts on `~/Library/Caches/mmr/mmr.duckdb`.
 - RAG chat fallback rendering: if structured-response parsing fails, frontend renders raw assistant text with preserved newlines (`whitespace-pre-wrap`), so token-per-line backend output appears as a vertical word list.
 - Citation dedupe keyed only by `document_id` + `chunk_id` does not collapse overlap-heavy chunking output; dedupe by normalized span/text if repeated citation cards become noisy.
 - For `_simple_summary` outputs, normalize internal whitespace before joining sentences to avoid newline-heavy token dumps from retrieval chunks.
 - For repeated near-duplicate citations, fingerprint normalized supporting quotes (prefix-based) rather than relying on chunk ids alone.
 - Current PDF chunking defaults are `token_target=700` and `overlap_tokens=120`; ingestion uses `chunk_pdf_blocks` without runtime overrides.
 - Vector persistence uploads one file per stored chunk, while synthesis context uses `supporting_quote` truncated to 240 chars per citation; tune chunk size with that quote window in mind.
-- OpenAI answer synthesis is not gated by `SYNEXTRA_USE_OPENAI_CHAT`; it is attempted whenever `OPENAI_API_KEY` is present, with local summary fallback on missing key/SDK/error.
+- OpenAI SDK and `OPENAI_API_KEY` are required backend dependencies for RAG orchestration/search/persistence; keep `openai` imports at module top level and avoid key-presence gating paths.
 - For Responses API migration, prefer native `instructions` + `input` fields over chat-style role arrays when no multi-item context object is required.
 - For GPT-5.2 reasoning controls in Responses API, pass `reasoning={"effort": ...}`; supported values are `none|low|medium|high|xhigh` (`minimal` is not listed for GPT-5.2), and model default is `none` when omitted.
 - Hybrid-first RAG policy: treat upload persistence as hybrid-only (always persist BM25 + vector store when possible) and force chat retrieval mode to `hybrid`; recoverable vector persistence failures should keep chat available with BM25 fallback plus warning.
 - `_call_agent` in `rag_agent_orchestrator` is synchronous; do not `await` it or the exception path can silently degrade to `_simple_summary`.
+- Any edit to `rag_agent_orchestrator.py` should run both `backend/tests/unit/services/test_rag_agent_orchestrator.py` and `backend/tests/integration/test_rag_end_to_end.py` to catch sync/async contract breaks and tool-wiring regressions before handoff.
+- For chat `500` diagnosis, prioritize API error payload + traceback first; uvicorn's `Invalid HTTP request received` warning is often transport noise rather than the root exception.
+- Playwright skill wrapper may lag upstream CLI naming (`playwright-cli` vs `playwright-mcp`); if wrapper fails, use `npx playwright@latest ...` commands directly for screenshots/verification.

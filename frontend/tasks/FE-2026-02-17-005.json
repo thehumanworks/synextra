@@ -1,0 +1,177 @@
+{
+  "task_id": "FE-2026-02-17-005",
+  "feature_branch": "feature/spec-frontend-rag",
+  "description": "Replace demo-style chat UI with a production document chat workspace, wire FastAPI text streaming through /api/chat, and render streamed markdown via AI-elements-aligned message components.",
+  "related_adrs": [
+    "frontend/adrs/0004-streaming-document-chat-workspace.md"
+  ],
+  "bdd_flows": [
+    {
+      "title": "Streaming assistant response renders incrementally",
+      "given": "the user has processed a PDF and sends a chat prompt",
+      "when": "the backend streams response chunks",
+      "then": "the UI renders assistant markdown progressively in the chat thread"
+    },
+    {
+      "title": "Workspace layout is simplified",
+      "given": "the root page is loaded",
+      "when": "the main workspace renders",
+      "then": "the UI shows only heading/subheading, upload section, and chat section with bottom input"
+    },
+    {
+      "title": "Route bridge maps useChat payload to backend contract",
+      "given": "useChat sends id/messages payload",
+      "when": "/api/chat handles the request",
+      "then": "the latest user prompt is forwarded to backend stream endpoint with normalized reasoning effort"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "ai-sdk",
+      "repository": "https://github.com/vercel/ai",
+      "purpose": "useChat and TextStreamChatTransport for client streaming"
+    },
+    {
+      "name": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi",
+      "purpose": "StreamingResponse endpoint for server-side chunked output"
+    },
+    {
+      "name": "streamdown",
+      "repository": "https://github.com/vercel/streamdown",
+      "purpose": "stream-safe markdown rendering in assistant bubbles"
+    },
+    {
+      "name": "playwright",
+      "repository": "https://github.com/microsoft/playwright",
+      "purpose": "manual visual validation and screenshot capture"
+    }
+  ],
+  "target_files": [
+    "frontend/app/page.tsx",
+    "frontend/app/layout.tsx",
+    "frontend/app/globals.css",
+    "frontend/app/api/chat/route.ts",
+    "frontend/app/api/chat/route.test.ts",
+    "frontend/components/document-chat-workspace.tsx",
+    "frontend/components/document-chat-workspace.test.tsx",
+    "frontend/components/ai-elements/message-bubble.tsx",
+    "frontend/components/ai-elements/message-bubble.test.tsx",
+    "frontend/components/ui/button.tsx",
+    "backend/src/synextra_backend/api/rag_chat.py",
+    "backend/tests/unit/api/test_rag_chat_streaming.py",
+    "frontend/adrs/0004-streaming-document-chat-workspace.md"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "the backend stream is available",
+      "when": "/api/chat forwards a request",
+      "then": "route returns a streaming text response and preserves the assistant output"
+    },
+    {
+      "if": "reasoning effort is unsupported",
+      "when": "/api/chat normalizes request payload",
+      "then": "reasoning defaults to a supported fallback before backend forwarding"
+    },
+    {
+      "if": "upload succeeds",
+      "when": "the user sends a prompt",
+      "then": "assistant response content is rendered from streamed markdown"
+    },
+    {
+      "if": "upload fails",
+      "when": "the workspace receives an upload error payload",
+      "then": "chat input and send controls remain disabled"
+    },
+    {
+      "if": "assistant markdown contains headings",
+      "when": "AI message bubble renders",
+      "then": "markdown structure is rendered semantically rather than plain text tokens"
+    },
+    {
+      "if": "streaming endpoint raises an exception",
+      "when": "backend stream route handles the request",
+      "then": "the API returns recoverable chat_failed error payload"
+    }
+  ],
+  "test_plan": {
+    "tdd_sequence": [
+      "Write backend streaming route tests for success and failure.",
+      "Write /api/chat route tests for useChat payload mapping and stream forwarding.",
+      "Write renamed workspace tests for upload gating and streamed assistant rendering.",
+      "Implement backend and frontend code paths to satisfy tests, then run manual Playwright verification."
+    ],
+    "unit_tests": [
+      "backend/tests/unit/api/test_rag_chat_streaming.py",
+      "frontend/app/api/chat/route.test.ts",
+      "frontend/components/document-chat-workspace.test.tsx",
+      "frontend/components/ai-elements/message-bubble.test.tsx"
+    ],
+    "integration_tests": [
+      "Frontend workspace upload + chat flow with mocked upload JSON and mocked text stream response."
+    ],
+    "playwright_manual_validation": [
+      {
+        "id": "PW-STREAM-001",
+        "step": "Load the app and verify heading/subheading plus two-section workspace layout.",
+        "expected": "Page has black shell with stone gradient heading and no notes panel."
+      },
+      {
+        "id": "PW-STREAM-002",
+        "step": "Process a PDF, send a prompt, and watch assistant response.",
+        "expected": "Assistant response appears progressively and markdown formatting is preserved."
+      },
+      {
+        "id": "PW-STREAM-003",
+        "step": "Click Clear after assistant response appears.",
+        "expected": "Chat thread clears while upload-ready state remains intact."
+      }
+    ]
+  },
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "review",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "pending",
+    "verdict": "pending",
+    "notes": [
+      "Subagent review pending; implementation complete and local validations run."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T21:02:00Z",
+      "actor": "codex",
+      "entry": "Primed AI SDK + FastAPI streaming patterns using parallel-web-search and wit before implementation."
+    },
+    {
+      "timestamp": "2026-02-17T21:08:00Z",
+      "actor": "codex",
+      "entry": "Added test-first coverage for backend stream endpoint, frontend chat route stream bridge, and renamed workspace component."
+    },
+    {
+      "timestamp": "2026-02-17T21:13:00Z",
+      "actor": "codex",
+      "entry": "Implemented backend StreamingResponse route and frontend TextStreamChatTransport integration with markdown-rendered assistant bubbles."
+    },
+    {
+      "timestamp": "2026-02-17T21:16:00Z",
+      "actor": "codex",
+      "entry": "Validated backend targeted ruff + pytest and frontend lint + typecheck + full vitest suite."
+    },
+    {
+      "timestamp": "2026-02-17T21:17:00Z",
+      "actor": "codex",
+      "entry": "Added ADR 0004 and prepared Playwright screenshot/manual verification steps."
+    },
+    {
+      "timestamp": "2026-02-17T21:25:00Z",
+      "actor": "codex",
+      "entry": "Ran backend targeted ruff/pytest plus frontend lint/typecheck/focused vitest; captured desktop and iPhone screenshots in output/playwright via Playwright CLI."
+    }
+  ]
+}

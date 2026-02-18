@@ -7,10 +7,9 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 import anyio
-from openai import pydantic_function_tool
+from openai import OpenAI, pydantic_function_tool
 from pydantic import BaseModel
 
-from openai import OpenAI
 from synextra_backend.repositories.rag_document_repository import RagDocumentRepository
 from synextra_backend.retrieval.bm25_search import Bm25IndexStore
 from synextra_backend.retrieval.evidence_merger import reciprocal_rank_fusion
@@ -108,6 +107,7 @@ class RagAgentOrchestrator:
         self._bm25_store = bm25_store
         self._session_memory = session_memory
         self._citation_validator = citation_validator or CitationValidator()
+        self._openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     async def handle_message(self, *, session_id: str, request: RagChatRequest) -> RagChatResponse:
         prompt = request.prompt.strip()
@@ -225,24 +225,19 @@ class RagAgentOrchestrator:
         tools_used: list[str] = []
 
         agent_result: AgentCallResult | None = None
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            try:
-                from openai import OpenAI  # type: ignore
-
-                client = OpenAI()
-                model = os.getenv("SYNEXTRA_CHAT_MODEL", "gpt-5.2")
-                agent_result = self._call_agent(
-                    client=client,
-                    model=model,
-                    instructions=self._agent_instructions_for_mode(mode),
-                    input=f"Question: {prompt}",
-                    reasoning_effort=reasoning_effort,
-                    tools=self._tools_for_mode(mode),
-                )
-                tools_used.extend(agent_result.tools_used)
-            except Exception:
-                self._append_unique(tools_used, "agent_retrieval_failed")
+        try:
+            model = os.getenv("SYNEXTRA_CHAT_MODEL", "gpt-5.2")
+            agent_result = self._call_agent(
+                client=self._openai_client,
+                model=model,
+                instructions=self._agent_instructions_for_mode(mode),
+                input=f"Question: {prompt}",
+                reasoning_effort=reasoning_effort,
+                tools=self._tools_for_mode(mode),
+            )
+            tools_used.extend(agent_result.tools_used)
+        except Exception:
+            self._append_unique(tools_used, "agent_retrieval_failed")
 
         if agent_result is not None and agent_result.evidence:
             evidence = agent_result.evidence
@@ -437,9 +432,7 @@ class RagAgentOrchestrator:
         citations: list[RagCitation],
         reasoning_effort: ReasoningEffort,
     ) -> str:
-        api_key = os.getenv("OPENAI_API_KEY")
-
-        client = OpenAI(api_key=api_key)
+        client = self._openai_client
         model = os.getenv("SYNEXTRA_CHAT_MODEL", "gpt-5.2")
 
         context_lines: list[str] = []

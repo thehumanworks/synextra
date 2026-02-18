@@ -8,7 +8,7 @@
 - Deliver planning-ready frontend specs for:
   - dark redesign + typography system
   - structured JSON response parsing + citation rendering
-  - retrieval-mode selector + backend routing integration
+  - hybrid retrieval routing alignment across upload + chat flows
 - Keep tasks in planning state (`status: todo`) with explicit TDD and validation criteria.
 
 ## Decisions and Traceability
@@ -20,7 +20,7 @@
 
 - `frontend/tasks/FE-2026-02-17-002.json`: dark visual redesign + tokenized typography system
 - `frontend/tasks/FE-2026-02-17-003.json`: backend JSON parsing + readable chat/citation rendering
-- `frontend/tasks/FE-2026-02-17-004.json`: retrieval mode selector + backend mode forwarding + optional agent-event extensibility
+- `frontend/tasks/FE-2026-02-17-004.json`: retrieval routing + backend mode forwarding + optional agent-event extensibility
 
 ## Shared Frontend-Backend Contract (Planned)
 
@@ -28,7 +28,7 @@
 {
   "request": {
     "prompt": "string",
-    "retrieval_mode": "embedded|vector|hybrid",
+    "retrieval_mode": "hybrid",
     "session_id": "string"
   },
   "response": {
@@ -52,11 +52,19 @@
 }
 ```
 
+Runtime note:
+- Frontend runtime should always send `retrieval_mode: "hybrid"` for chat/upload flows.
+- Response `mode` remains enum-compatible because backend contracts and stored history may still include `embedded|vector|hybrid`.
+
 ## Validation Mandate
 
 - TDD first: failing unit/component/integration tests before implementation.
-- Integration tests must cover backend response contracts and mode forwarding with enum parity (`embedded|vector|hybrid`).
+- Integration tests must cover backend response contracts and hybrid mode forwarding.
 - Playwright manual checklist execution is required for:
   - dark-mode typography rendering
   - citation visibility/traceability
-  - mode switching and optional unknown agent-event fallback
+  - sources panel behavior (hidden by default, animated expand/collapse, readable labels)
+  - optional unknown agent-event fallback
+- Citation UI validation must assert:
+  - no raw chunk/document ids are rendered as primary body text in source cards
+  - mixed-source rendering works (`bm25_search` and `openai_vector_store_search` labels)

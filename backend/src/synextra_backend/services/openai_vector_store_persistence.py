@@ -11,15 +11,7 @@ from synextra_backend.repositories.rag_document_repository import RagDocumentRep
 
 
 class OpenAIVectorStorePersistence:
-    """Persist chunk files to an OpenAI vector store.
-
-    This implementation is intentionally defensive:
-
-    * The OpenAI SDK is imported lazily so unit tests can run without the
-      dependency installed.
-    * Missing credentials raise a clear error that the API layer can map to a
-      recoverable response.
-    """
+    """Persist chunk files to an OpenAI vector store."""
 
     def __init__(
         self,
@@ -52,11 +44,7 @@ class OpenAIVectorStorePersistence:
             duration_ms = int((time.perf_counter() - start) * 1000)
             return duration_ms, signature, existing.vector_store_id, list(existing.file_ids)
 
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY is not configured")
-
-        client = OpenAI()
+        client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
         vector_store = client.vector_stores.create(
             name=f"{self._vector_store_name_prefix}-{document_id}",

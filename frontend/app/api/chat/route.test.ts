@@ -3,22 +3,31 @@ import { describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 
 
+function streamFromChunks(chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  let idx = 0;
+
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (idx >= chunks.length) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(encoder.encode(chunks[idx]));
+      idx += 1;
+    },
+  });
+}
+
 describe("/api/chat POST", () => {
-  it("forwards prompt and retrieval_mode to the backend", async () => {
+  it("forwards latest user message to backend streaming endpoint", async () => {
     process.env.SYNEXTRA_BACKEND_URL = "http://backend";
 
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          session_id: "s",
-          mode: "hybrid",
-          answer: "ok",
-          tools_used: ["bm25"],
-          citations: [],
-          agent_events: [],
-        }),
-        { status: 200, headers: { "content-type": "application/json" } }
-      )
+      new Response(streamFromChunks(["assistant ", "reply"]), {
+        status: 200,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -26,61 +35,42 @@ describe("/api/chat POST", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        session_id: "s",
-        prompt: "hello",
-        retrieval_mode: "hybrid",
+        id: "chat-session",
+        messages: [
+          {
+            id: "u1",
+            role: "user",
+            parts: [{ type: "text", text: "hello from user" }],
+          },
+        ],
         reasoning_effort: "high",
       }),
     });
 
     const res = await POST(req);
     expect(res.status).toBe(200);
-
-    const body = await res.json();
-    expect(body.answer).toBe("ok");
+    expect(await res.text()).toBe("assistant reply");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, rawInit] = fetchMock.mock.calls[0];
-    const init = (rawInit ?? {}) as RequestInit;
-    expect(init.method).toBe("POST");
-
-    const forwarded = JSON.parse(String(init.body ?? "{}"));
-    expect(forwarded.prompt).toBe("hello");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://backend/v1/rag/sessions/chat-session/messages/stream");
+    expect((init as RequestInit).method).toBe("POST");
+    const forwarded = JSON.parse(String((init as RequestInit).body));
+    expect(forwarded.prompt).toBe("hello from user");
     expect(forwarded.retrieval_mode).toBe("hybrid");
     expect(forwarded.reasoning_effort).toBe("high");
 
     vi.unstubAllGlobals();
   });
 
-  it("returns malformed JSON when dev_malformed is set", async () => {
-    const req = new Request("http://localhost/api/chat", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ dev_malformed: true }),
-    });
-
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const text = await res.text();
-    expect(text).toContain("\"answer\"");
-    expect(() => JSON.parse(text)).toThrow();
-  });
-
-  it("falls back reasoning_effort to medium when unsupported for gpt-5.2", async () => {
+  it("falls back unsupported reasoning effort to medium", async () => {
     process.env.SYNEXTRA_BACKEND_URL = "http://backend";
 
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          session_id: "s",
-          mode: "hybrid",
-          answer: "ok",
-          tools_used: ["bm25"],
-          citations: [],
-          agent_events: [],
-        }),
-        { status: 200, headers: { "content-type": "application/json" } }
-      )
+      new Response(streamFromChunks(["ok"]), {
+        status: 200,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -88,20 +78,55 @@ describe("/api/chat POST", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        session_id: "s",
-        prompt: "hello",
-        retrieval_mode: "embedded",
+        id: "s",
+        messages: [{ id: "u", role: "user", content: "hello" }],
         reasoning_effort: "minimal",
       }),
     });
 
     await POST(req);
 
-    const [, rawInit] = fetchMock.mock.calls[0];
-    const init = (rawInit ?? {}) as RequestInit;
-    const forwarded = JSON.parse(String(init.body ?? "{}"));
-    expect(forwarded.retrieval_mode).toBe("hybrid");
+    const [, init] = fetchMock.mock.calls[0];
+    const forwarded = JSON.parse(String((init as RequestInit).body));
     expect(forwarded.reasoning_effort).toBe("medium");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("returns a 400 plain-text response when prompt is missing", async () => {
+    const req = new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "s",
+        messages: [],
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("No prompt provided");
+  });
+
+  it("streams a local fallback when backend is unavailable", async () => {
+    process.env.SYNEXTRA_BACKEND_URL = "http://backend";
+
+    const fetchMock = vi.fn().mockRejectedValue(new Error("connect ECONNREFUSED"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const req = new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "fallback-session",
+        messages: [{ id: "u", role: "user", content: "hello" }],
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    expect(await res.text()).toContain("Backend unavailable");
 
     vi.unstubAllGlobals();
   });

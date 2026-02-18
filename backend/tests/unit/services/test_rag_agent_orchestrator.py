@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import types
 from typing import Any
 
@@ -15,6 +14,11 @@ from synextra_backend.services.rag_agent_orchestrator import (
     _simple_summary,
 )
 from synextra_backend.services.session_memory import SessionMemory
+
+
+@pytest.fixture(autouse=True)
+def _set_required_openai_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
 
 def _chunk(
@@ -91,11 +95,9 @@ def test_build_citations_dedupes_equivalent_quotes_across_chunks() -> None:
 
 
 @pytest.mark.asyncio
-async def test_synthesize_answer_uses_openai_even_when_feature_flag_off(
+async def test_synthesize_answer_uses_openai_with_required_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("SYNEXTRA_USE_OPENAI_CHAT", "0")
     monkeypatch.setenv("SYNEXTRA_CHAT_MODEL", "gpt-test-model")
 
     captured: dict[str, object] = {}
@@ -111,12 +113,14 @@ async def test_synthesize_answer_uses_openai_even_when_feature_flag_off(
             return types.SimpleNamespace(output_text="Generated answer")
 
     class _FakeOpenAI:
-        def __init__(self) -> None:
+        def __init__(self, *, api_key: str) -> None:
+            assert api_key == "test-key"
             self.responses = _FakeResponses()
 
-    fake_module = types.ModuleType("openai")
-    fake_module.OpenAI = _FakeOpenAI  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "openai", fake_module)
+    monkeypatch.setattr(
+        "synextra_backend.services.rag_agent_orchestrator.OpenAI",
+        _FakeOpenAI,
+    )
 
     orchestrator = _orchestrator()
     evidence = [
@@ -153,12 +157,14 @@ async def test_run_retrieval_prefers_agent_tool_calls_when_available(
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     class _FakeOpenAI:
-        def __init__(self) -> None:
+        def __init__(self, *, api_key: str) -> None:
+            assert api_key == "test-key"
             pass
 
-    fake_module = types.ModuleType("openai")
-    fake_module.OpenAI = _FakeOpenAI  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "openai", fake_module)
+    monkeypatch.setattr(
+        "synextra_backend.services.rag_agent_orchestrator.OpenAI",
+        _FakeOpenAI,
+    )
 
     orchestrator = _orchestrator()
 

@@ -26,6 +26,10 @@
 - When changing default model IDs or generation settings, verify the model name against official provider docs before hardcoding.
 - For synthesis behavior changes, include regression tests for both primary generation and fallback paths, plus readability/format expectations.
 - Do not conclude "fixed" from internal counters alone; validate the user-visible symptom with an integration path that mirrors real responses.
+- In `rag_agent_orchestrator.py`, preserve the sync/async contract during refactors (`_call_agent` is sync; `_run_retrieval`/`_synthesize_answer` are async entrypoints). Mismatches here can silently force fallback summaries or hard-fail hybrid chat.
+- Build `pydantic_function_tool(...)` definitions only with explicit model arguments (`Bm25RetrievalTool`/`VectorRetrievalTool`) and avoid stray bare calls; these produce runtime `500`s.
+- After any retrieval/orchestrator edit, run both `uv --directory backend run pytest tests/unit/services/test_rag_agent_orchestrator.py` and `uv --directory backend run pytest tests/integration/test_rag_end_to_end.py`.
+- Because OpenAI is required at module import time, tests that import orchestration/search modules must set `OPENAI_API_KEY` and patch module-level OpenAI clients.
 - Before handoff, run backend lint, typecheck, and tests (or explicitly call out why any check was skipped).
 
 ## Buck2 Validation Discipline
