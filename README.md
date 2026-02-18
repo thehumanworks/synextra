@@ -1,4 +1,6 @@
-# Synextra Monorepo
+# Synextra `Chat with your documents`
+
+
 
 Monorepo scaffold for a document-ingestion challenge application with:
 - `backend/`: FastAPI + `uv`
@@ -62,7 +64,10 @@ uv sync --dev
 
 export OPENAI_API_KEY="..."
 synextra query "What is this document about?" --pdf ../backend/tests/fixtures/1706.03762v7.pdf
+synextra chat --pdf ../backend/tests/fixtures/1706.03762v7.pdf
 ```
+
+`synextra ingest` is no longer a standalone CLI command. Use `query` or `chat` with at least one `--file`/`--pdf` document each run.
 
 ## Engineering Process Files
 

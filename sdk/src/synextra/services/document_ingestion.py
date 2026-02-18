@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from docx import Document
+
 from synextra.services.block_chunker import ChunkedText, chunk_pdf_blocks, chunk_text_pages
 from synextra.services.document_store import PageText, build_page_texts_from_blocks
 from synextra.services.pdf_ingestion import (
@@ -244,11 +246,6 @@ def _paginate_lines(lines: list[str], *, lines_per_page: int = 160) -> list[Page
 
 
 def _extract_docx_lines(data: bytes) -> list[str]:
-    try:
-        from docx import Document
-    except Exception as exc:  # pragma: no cover
-        raise DocumentParseError("python-docx is required to parse .docx files") from exc
-
     try:
         doc = Document(io.BytesIO(data))
     except Exception as exc:

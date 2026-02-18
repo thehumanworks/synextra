@@ -44,7 +44,7 @@ def _ingest_all(client: Synextra, documents: list[Path]) -> list[dict[str, objec
     return results
 
 
-DocumentOption = Annotated[
+OptionalDocumentOption = Annotated[
     list[Path] | None,
     typer.Option(
         "--file",
@@ -60,41 +60,21 @@ DocumentOption = Annotated[
 
 
 @app.command()
-def ingest(
+def query(
+    prompt: Annotated[str, typer.Argument(help="Question/prompt to answer.")],
     documents: Annotated[
         list[Path],
-        typer.Argument(
+        typer.Option(
+            "--file",
+            "--doc",
+            "--document",
+            "--pdf",
             exists=True,
             readable=True,
             dir_okay=False,
-            help=(
-                "Document file(s) to ingest (.pdf, .doc/.docx, .csv, .xlsx, .txt/.md, code files)."
-            ),
+            help="Document(s) to ingest for this query run (required, ephemeral store).",
         ),
     ],
-    json_output: Annotated[bool, typer.Option("--json", help="Emit JSON output.")] = False,
-) -> None:
-    """Ingest one or more documents into an in-memory BM25 + document store."""
-
-    client = Synextra(openai_api_key=None)
-    results = _ingest_all(client, documents)
-
-    if json_output:
-        _print_json({"ingested": results})
-        return
-
-    for item in results:
-        typer.echo(
-            f"{item['filename']} -> document_id={item['document_id']} "
-            f"pages={item['page_count']} chunks={item['chunk_count']} "
-            f"indexed={item['indexed_chunk_count']}"
-        )
-
-
-@app.command()
-def query(
-    prompt: Annotated[str, typer.Argument(help="Question/prompt to answer.")],
-    documents: DocumentOption = None,
     openai_api_key: Annotated[
         str | None,
         typer.Option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key."),
@@ -107,10 +87,6 @@ def query(
         str,
         typer.Option("--session-id", help="Conversation/session id."),
     ] = "cli",
-    mode: Annotated[
-        RetrievalMode,
-        typer.Option("--mode", help="Retrieval mode: embedded|hybrid."),
-    ] = "hybrid",
     reasoning_effort: Annotated[
         ReasoningEffort,
         typer.Option(
@@ -120,19 +96,17 @@ def query(
     ] = "medium",
     json_output: Annotated[bool, typer.Option("--json", help="Emit JSON output.")] = False,
 ) -> None:
-    """Ingest (optional) documents and run the full research->review->synthesize pipeline."""
+    """Ingest required documents and run the full research->review->synthesize pipeline."""
 
     key = _require_api_key(openai_api_key)
     client = Synextra(openai_api_key=key, model=model)
 
-    ingest_results: list[dict[str, object]] = []
-    if documents:
-        ingest_results = _ingest_all(client, documents)
+    ingest_results = _ingest_all(client, documents)
 
     result = client.query(
         prompt,
         session_id=session_id,
-        mode=mode,
+        mode="hybrid",
         reasoning_effort=reasoning_effort,
     )
 
@@ -162,7 +136,7 @@ def query(
 @app.command()
 def research(
     prompt: Annotated[str, typer.Argument(help="Question/prompt to research.")],
-    documents: DocumentOption = None,
+    documents: OptionalDocumentOption = None,
     openai_api_key: Annotated[
         str | None,
         typer.Option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key."),
@@ -246,7 +220,7 @@ def research(
 @app.command()
 def synthesize(
     prompt: Annotated[str, typer.Argument(help="Question/prompt to answer.")],
-    documents: DocumentOption = None,
+    documents: OptionalDocumentOption = None,
     openai_api_key: Annotated[
         str | None,
         typer.Option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key."),
@@ -293,7 +267,7 @@ def synthesize(
 @app.command()
 def chat(
     documents: Annotated[
-        list[Path] | None,
+        list[Path],
         typer.Option(
             "--file",
             "--doc",
@@ -302,9 +276,9 @@ def chat(
             exists=True,
             readable=True,
             dir_okay=False,
-            help="Document(s) to ingest before starting the chat.",
+            help="Document(s) to ingest before starting the chat (required).",
         ),
-    ] = None,
+    ],
     openai_api_key: Annotated[
         str | None,
         typer.Option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key."),
@@ -317,10 +291,6 @@ def chat(
         str,
         typer.Option("--session-id", help="Conversation/session id."),
     ] = "chat",
-    mode: Annotated[
-        RetrievalMode,
-        typer.Option("--mode", help="Retrieval mode: embedded|hybrid."),
-    ] = "hybrid",
     reasoning_effort: Annotated[
         ReasoningEffort,
         typer.Option(
@@ -334,9 +304,8 @@ def chat(
     key = _require_api_key(openai_api_key)
     client = Synextra(openai_api_key=key, model=model)
 
-    if documents:
-        ingested = _ingest_all(client, documents)
-        typer.echo(f"Ingested {len(ingested)} document(s).")
+    ingested = _ingest_all(client, documents)
+    typer.echo(f"Ingested {len(ingested)} document(s).")
 
     typer.echo("Enter prompts. Type 'exit' or 'quit' to leave.")
 
@@ -356,7 +325,7 @@ def chat(
         res = client.query(
             text,
             session_id=session_id,
-            mode=mode,
+            mode="hybrid",
             reasoning_effort=reasoning_effort,
         )
         typer.echo(res.answer)

@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import cast
 
+import tiktoken
+
 from synextra.services.document_store import PageText
 from synextra.services.pdf_ingestion import PdfTextBlock
 
@@ -24,12 +26,7 @@ class ChunkedText:
 class _Tokenizer:
     def __init__(self) -> None:
         self._encoding = None
-        try:
-            import tiktoken
-
-            self._encoding = tiktoken.get_encoding("cl100k_base")
-        except Exception:  # pragma: no cover
-            self._encoding = None
+        self._encoding = tiktoken.get_encoding("cl100k_base")
 
     def encode(self, text: str) -> list[int] | list[str]:
         if self._encoding is None:

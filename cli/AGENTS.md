@@ -12,7 +12,7 @@
 ```
 cli/src/synextra_cli/
   __init__.py
-  main.py              # Typer CLI entrypoints: ingest, query, research, synthesize, chat
+  main.py              # Typer CLI entrypoints: query, research, synthesize, chat
 cli/tests/
   test_cli_smoke.py    # Import smoke test + basic command invocation
 cli/pyproject.toml     # CLI dependencies: synextra (path dep), typer, rich
@@ -47,6 +47,7 @@ If this fails, fix the import before running `buck2 run //:cli-test`.
 - Use `uv --directory cli run <command>` for all execution.
 - Follow TDD: write or update tests before implementation.
 - `test_cli_smoke.py` covers only happy-path import and basic invocations. Expand it with failure-mode tests (e.g., missing API key, invalid file path, network error) when adding new CLI commands.
+- `synextra query` and `synextra chat` require at least one `--file` value and always run retrieval in `hybrid` mode. `synextra ingest` no longer exists as a standalone command.
 - Keep style consistent: `uv --directory cli run ruff check src/` and `uv --directory cli run ruff format src/`.
 - Keep types strict: `uv --directory cli run mypy src/`.
 
@@ -55,10 +56,13 @@ If this fails, fix the import before running `buck2 run //:cli-test`.
 After any CLI or SDK change, validate with a real invocation:
 
 ```bash
-PYTHONWARNINGS=ignore uv --directory cli run synextra ingest ../backend/tests/fixtures/1706.03762v7.pdf --json
+PYTHONWARNINGS=ignore uv --directory cli run synextra query \
+  "Summarize the key idea in this file." \
+  --file ../backend/tests/fixtures/1706.03762v7.pdf \
+  --json
 ```
 
-Expected output: valid JSON with `page_count`, `chunk_count`, and document metadata. If this fails, the CLI is broken regardless of unit test results.
+Expected output: valid JSON containing `ingested` metadata plus `answer`/`citations`. If this fails, the CLI is broken regardless of unit test results.
 
 ## Buck2 Targets
 

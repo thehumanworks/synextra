@@ -64,9 +64,10 @@
 ### CLI (`cli/`)
 - CLI code lives in `cli/src/synextra_cli/main.py`. It uses `synextra` SDK but has zero imports from `synextra_backend`.
 - CLI tests live in `cli/tests/test_cli_smoke.py`. The CLI module must be importable before any test can run — syntax errors in `main.py` silently block all CLI tests.
+- CLI no longer has a standalone `ingest` command; `query` and `chat` require one or more `--file` arguments and ingest those documents in-process for the current run.
 - After any CLI change: run `python -c "import synextra_cli.main"` before running `buck2 run //:cli-test` to catch import-time failures early.
 - Python exception syntax: always use `except (ExcType1, ExcType2):` with parentheses. The legacy `except ExcType1, ExcType2:` syntax (Python 2) is a SyntaxError in Python 3 and will break CLI module import entirely — this was caught in review after the CLI workspace was created.
-- Verify CLI smoke run after any CLI or SDK change: `PYTHONWARNINGS=ignore uv --directory cli run synextra ingest <path/to/pdf> --json`
+- Verify CLI smoke run after any CLI or SDK change: `PYTHONWARNINGS=ignore uv --directory cli run synextra query "<question>" --file <path/to/file> --json`
 
 ## Subagent Review Protocol (Mandatory)
 
