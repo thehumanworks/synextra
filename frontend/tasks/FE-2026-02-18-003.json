@@ -1,0 +1,83 @@
+{
+  "task_id": "FE-2026-02-18-003",
+  "feature_branch": "main",
+  "description": "Remove remaining frontend lint warnings by deleting unused upload-route type and replacing animated-input remote image usage with Next Image configured for giphy host.",
+  "related_adrs": [
+    "frontend/adrs/0004-streaming-document-chat-workspace.md"
+  ],
+  "bdd_flows": [
+    {
+      "title": "Lint warning cleanup",
+      "given": "frontend lint reports an unused type and no-img-element warning",
+      "when": "code and config are updated",
+      "then": "lint completes with zero warnings and zero errors"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "next",
+      "repository": "https://github.com/vercel/next.js",
+      "purpose": "Image component and remote image host configuration"
+    }
+  ],
+  "target_files": [
+    "frontend/app/api/rag/upload/route.ts",
+    "frontend/components/ui/animated-input.tsx",
+    "frontend/next.config.ts",
+    "frontend/AGENTS.md",
+    "frontend/tasks/FE-2026-02-18-003.json"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "animated input uses next/image with remote src",
+      "when": "frontend builds",
+      "then": "build succeeds because remote host is allowed in next config"
+    },
+    {
+      "if": "lint is run",
+      "when": "warnings are fixed",
+      "then": "eslint exits cleanly"
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer-subagent",
+    "verdict": "pass",
+    "notes": [
+      "Reviewer caught missing next/image remote host allowlist; fix applied in next.config.ts and revalidated."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-18T11:52:00Z",
+      "actor": "codex",
+      "entry": "Removed unused BackendFailure type in upload route and switched animated-input avatar from img to next/image."
+    },
+    {
+      "timestamp": "2026-02-18T11:54:00Z",
+      "actor": "codex",
+      "entry": "Ran lint and typecheck; lint warning clearance succeeded but subagent review flagged missing next/image remote host config."
+    },
+    {
+      "timestamp": "2026-02-18T11:56:00Z",
+      "actor": "codex",
+      "entry": "Added media.giphy.com remote pattern to next.config.ts and reran lint/typecheck/build; all passed."
+    },
+    {
+      "timestamp": "2026-02-18T11:59:00Z",
+      "actor": "codex",
+      "entry": "Ran full frontend test suite to confirm no regressions (61/61 passing)."
+    },
+    {
+      "timestamp": "2026-02-18T12:00:00Z",
+      "actor": "codex",
+      "entry": "Updated frontend AGENTS memory with next/image remotePatterns guidance to prevent repeat failures."
+    }
+  ]
+}

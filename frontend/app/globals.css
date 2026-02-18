@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+@import "streamdown/styles.css";
+@source "../node_modules/streamdown/dist/*.js";
+
+:root {
+  --background: #000000;
+  --foreground: #e7e5e4;
+  --card: #0a0a0a;
+  --card-foreground: #e7e5e4;
+  --primary: #d6d3d1;
+  --primary-foreground: #09090b;
+  --secondary: #111111;
+  --secondary-foreground: #d6d3d1;
+  --border: #78716c;
+  --input: #111111;
+  --ring: #a8a29e;
+  --radius: 0.8rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-code);
+  --font-pixel: var(--font-geist-pixel-square);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+::selection {
+  background: rgba(214, 211, 209, 0.3);
+  color: #f5f5f4;
+}
+
+/* Legacy neutral gradient - kept for backward compatibility */
+.stone-gradient-text {
+  background-image: linear-gradient(120deg, #fafaf9 0%, #d6d3d1 48%, #78716c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Electric title gradient - white -> electric blue -> cyan */
+.title-gradient-text {
+  font-family: var(--font-geist-pixel-square), var(--font-code), ui-monospace, monospace;
+  background-image: linear-gradient(
+    105deg,
+    #ffffff 0%,
+    #e0f2ff 20%,
+    #60c8ff 45%,
+    #00d4ff 65%,
+    #0ea5e9 85%,
+    #38bdf8 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 24px rgba(0, 212, 255, 0.35));
+}
+
+/* Safe-area bottom padding for iOS */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}

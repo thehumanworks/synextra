@@ -1,0 +1,91 @@
+# Backend Agent Instructions
+
+## Scope
+
+- These rules apply to `backend/**`.
+- Keep modules short, composable, and single-purpose.
+- Keep code fully typed and production-grade.
+
+## Dependency Priming (Required)
+
+- Before implementing changes that rely on external libraries, use the `wit` skill/tool to inspect upstream repositories.
+- Reconcile upstream behavior with local constraints before writing code.
+- Capture high-value findings in task `execution_log` and durable guidance in this file.
+
+## Development Standards
+
+- Use `uv` for environment, dependency, and command execution.
+- Follow TDD: write or update tests first, then implementation.
+- Every feature must include positive, negative, and edge-case tests.
+- Keep style and quality aligned with PEP guidance and strict linting/type checks.
+- `AGENTS.md` is organizational memory, not a changelog.
+
+## Backend Retrospective Reminders
+
+- Backend core ingestion/retrieval contracts are now compatibility wrappers over the standalone `synextra` SDK. Keep business logic in `sdk/` and avoid duplicating implementation under `backend/src/synextra_backend/{services,retrieval,repositories,schemas}`.
+- For chat quality/format bugs, confirm the active answer path first (retrieval-agent output, optional review gate, or `_simple_summary` fallback) before changing text post-processing.
+- When changing default model IDs or generation settings, verify the model name against official provider docs before hardcoding.
+- For synthesis behavior changes, include regression tests for both retrieval-answer streaming and `_simple_summary` fallback paths, plus readability/format expectations.
+- Do not conclude "fixed" from internal counters alone; validate the user-visible symptom with an integration path that mirrors real responses.
+- `rag_agent_orchestrator.py` uses the `openai-agents` SDK exclusively — no raw `OpenAI`/`AsyncOpenAI` clients. `_call_agent` uses `Runner.run_streamed` for retrieval, judge review is optional via `RagChatRequest.review_enabled`, and `stream_synthesis` streams programmatic chunks from `RetrievalResult.answer` (no second model call).
+- Tools for the agent loop are created as async `@function_tool` closures in `_create_agent_tools()` that collect evidence via a shared list. Closures are async to stay on the event loop (no thread-pool dispatch). Do not use `pydantic_function_tool` — the SDK generates schemas from type hints.
+- With strict function-tool schemas, avoid raw `dict[str, Any]` params in tool signatures. Use typed Pydantic models/unions and add a regression test for native structured payloads (not only JSON-encoded strings) to prevent `additionalProperties` schema failures.
+- After any retrieval/orchestrator edit, run both `uv --directory backend run pytest tests/unit/services/test_rag_agent_orchestrator.py` and `uv --directory backend run pytest tests/integration/test_rag_end_to_end.py`.
+- Vector-store persistence now queues background work: `POST /v1/rag/documents/{id}/persist/vector-store` returns `status=queued` until ready, and `GET /v1/rag/documents/{id}/persist/vector-store` is the status probe (`ok` vs `queued` vs `vector_store_not_persisted`).
+- `OpenAIVectorStorePersistence` uses content-hash-derived idempotency keys for vector-store create, file uploads, and file-batch create requests; preserve deterministic key inputs (`document_id`, signature, chunk_id) when refactoring.
+- Because OpenAI is required at module import time, tests that import orchestration/search modules must set `OPENAI_API_KEY` and patch module-level OpenAI clients.
+- Before handoff, run backend lint, typecheck, and tests (or explicitly call out why any check was skipped).
+
+## Service Interface Design
+
+- For any new service consumed by FastAPI routers via dependency injection, define a `Protocol` (or ABC) before writing the concrete implementation. Routers depend on the protocol, not the concrete class. This enables test fakes that are contract-enforced and prevents silent divergence between fakes and implementations.
+- Test fakes/stubs must implement the same Protocol as the real service. If the real service interface changes and the fake does not, the fake must fail to typecheck.
+
+## Background Task and Async Operation Standards
+
+- **Observable failure states are mandatory.** Any `BackgroundTasks` flow that writes to a polled status must distinguish at minimum `queued`, `running`, `ok`, and `error` (with last-error payload and timestamp). Silent exception swallowing with only a `logger.exception()` is never sufficient — the poller must be able to distinguish "still running" from "permanently failed" without an external timeout.
+- **Partial-failure cleanup for multi-step external API calls.** If step N of a sequence calling an external API (e.g., `vector_stores.create`) succeeds but step N+1 fails, the code must either clean up (delete the resource from step N) or track the orphan for deferred cleanup. No external resource (vector store, S3 object, webhook) should be created without a corresponding rollback or orphan-tracking path.
+- **Explicit timeouts on blocking external API polls.** Background threads in FastAPI `BackgroundTasks` run in the starlette thread pool. Unbounded `poll()` calls block a pool worker indefinitely. Always pass `poll_interval_ms` and a total timeout deadline. Document the timeout budget in the function docstring.
+- **Process-local state requires deployment-model documentation.** Any in-memory guard, cache, or rate limiter (Python dict, set, module-level variable) must include an inline comment documenting: (a) what the multi-worker failure mode is, (b) what the user-visible consequence is, (c) what the precondition for safe deployment is (single-worker, sticky sessions, external lock).
+
+## TOCTOU and Concurrency Patterns
+
+- **Inspect-then-lock is a TOCTOU race.** Reading state (e.g., computing a signature from repository data) and then conditionally acquiring a lock based on that state has a window where the underlying data can change. Either fold the read into the lock boundary, or compute the state once and pass it as a parameter so the lock scope covers the guard condition.
+- **Do not read the same data twice across inspect/persist boundaries.** If a method reads chunks to compute a signature, pass the chunks and signature into the persist method rather than re-reading. This eliminates both the redundant I/O and the TOCTOU window.
+- **OpenAI idempotency keys expire after ~24 hours.** Retry-after-expiry scenarios can create duplicate resources with the same name. For flows that may be retried after long delays, check for existing resources before creating new ones.
+
+## Buck2 Validation Discipline
+
+- If `backend/pyproject.toml` or `backend/uv.lock` changes, run `buck2 run //:backend-install` (or `buck2 run //:install`) before lint/test/typecheck.
+- If `.buckconfig`, `BUCK`, or `tools/buck/*.sh` changes during backend work, rerun `buck2 run //:check` before task completion.
+- For unexplained Buck regressions after config/dependency edits, run `buck2 clean`, then `buck2 run //:install`, then `buck2 run //:check`.
+- Prefer `buck2 run //:dev` for local full-stack development instead of running backend/frontend manually in separate shells.
+- When logging setup or infra failures in task `execution_log`, include `buck2 --version`, Python runtime version, and Node runtime version for reproducibility.
+
+## Documentation and Architecture
+
+- Write deeper technical documentation in `backend/docs/` with citations.
+- Write architectural decisions in `backend/adrs/`.
+- Every ADR must include at least two alternatives with rationale for rejection.
+
+## Task JSON Contract (Required)
+
+- Tasks live in `backend/tasks/*.json` and must be JSON for machine parsing.
+- Each task JSON must include:
+  - `task_id`
+  - `feature_branch`
+  - `description`
+  - `bdd_flows`
+  - `external_dependencies` (with GitHub repo pointers where applicable)
+  - `target_files`
+  - `if_when_then_tests`
+  - `status_lifecycle`
+  - `status`
+  - `required_subagent_review`
+  - `execution_log`
+- For API-facing tasks, add `related_adrs` and `tdd_test_matrix` entries that explicitly cover unit, integration, edge, and frontend-backend contract scenarios.
+- Status lifecycle is mandatory: `todo -> review -> done`.
+- When picked up, set `status` to `todo`.
+- When implementation is complete, set `status` to `review`, spawn a subagent reviewer, and address review feedback critically.
+- Move to `done` only after review feedback is resolved and lint/typecheck/tests pass.
+- `execution_log` must be continuously updated throughout the task lifecycle.

@@ -1,0 +1,103 @@
+{
+  "task_id": "FE-2026-02-18-004",
+  "feature_branch": "main",
+  "description": "Fix citation reference navigation so clicking inline [n] scrolls to the matching source even when the sources accordion starts collapsed.",
+  "related_adrs": [
+    "frontend/adrs/0005-citation-reference-navigation-and-modal.md"
+  ],
+  "bdd_flows": [
+    {
+      "title": "Collapsed source panel still scrolls to citation",
+      "given": "assistant output includes a clickable inline citation marker and the sources panel is collapsed",
+      "when": "the user clicks the inline marker",
+      "then": "the sources panel opens and the UI scrolls to the matching citation chip"
+    },
+    {
+      "title": "Expanded panel behavior remains unchanged",
+      "given": "a citation target is already visible in an expanded panel",
+      "when": "the citation focus flow runs",
+      "then": "citation highlight and focus handling continue to work without regressions"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "motion",
+      "repository": "https://github.com/motiondivision/motion",
+      "purpose": "animated accordion expansion timing"
+    },
+    {
+      "name": "@testing-library/react",
+      "repository": "https://github.com/testing-library/react-testing-library",
+      "purpose": "component interaction and scroll-behavior regression tests"
+    },
+    {
+      "name": "vitest",
+      "repository": "https://github.com/vitest-dev/vitest",
+      "purpose": "frontend unit/component test runner"
+    }
+  ],
+  "target_files": [
+    "frontend/components/chat/citation-accordion.tsx",
+    "frontend/components/ai-elements/message-bubble.test.tsx",
+    "frontend/AGENTS.md",
+    "frontend/tasks/FE-2026-02-18-004.json"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "sources are collapsed and an inline [n] marker is clicked",
+      "when": "citation focus is requested",
+      "then": "scrollIntoView is triggered again after expand animation timing so the source is reached reliably"
+    },
+    {
+      "if": "citation accordion receives a focus request directly",
+      "when": "the list auto-expands",
+      "then": "the target citation still mounts, highlights, and remains addressable by scoped id"
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer-subagent",
+    "verdict": "pass",
+    "notes": [
+      "Adversarial diff-aware review completed with explicit category reasoning; no findings across API contract, concurrency, state scope, error handling, crash recovery, or test fidelity."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-18T12:06:00Z",
+      "actor": "codex",
+      "entry": "Traced citation click flow through MarkdownResponse -> AiMessageBubble -> CitationAccordion and identified immediate scroll timing against collapsed animated content as the likely root cause."
+    },
+    {
+      "timestamp": "2026-02-18T12:07:00Z",
+      "actor": "codex",
+      "entry": "Added a failing regression in message-bubble tests asserting a second scroll attempt for collapsed-panel citation clicks."
+    },
+    {
+      "timestamp": "2026-02-18T12:08:00Z",
+      "actor": "codex",
+      "entry": "Implemented delayed scroll retry in CitationAccordion aligned with expand transition timing and kept existing focus-handled callback flow."
+    },
+    {
+      "timestamp": "2026-02-18T12:09:00Z",
+      "actor": "codex",
+      "entry": "Ran frontend validation: pnpm lint, pnpm typecheck, targeted citation tests, and full vitest suite (61/61 passing)."
+    },
+    {
+      "timestamp": "2026-02-18T12:10:00Z",
+      "actor": "codex",
+      "entry": "Updated frontend AGENTS durable guidance for motion-accordion citation jump retries."
+    },
+    {
+      "timestamp": "2026-02-18T12:12:00Z",
+      "actor": "codex",
+      "entry": "Completed required adversarial subagent review (diff-aware, mandatory category enumeration) and received pass verdict with no findings."
+    }
+  ]
+}

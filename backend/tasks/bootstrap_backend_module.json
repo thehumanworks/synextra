@@ -1,0 +1,122 @@
+{
+  "task_id": "backend-bootstrap-001",
+  "feature_branch": "feature/backend/bootstrap-fastapi",
+  "description": "Bootstrap the backend module with uv-managed FastAPI app, strict lint/type tooling, and TDD-based health endpoint tests.",
+  "bdd_flows": [
+    {
+      "title": "Health check success",
+      "given": "the backend service is running",
+      "when": "a client calls GET /health",
+      "then": "the response is 200 with status=ok and the configured service name"
+    },
+    {
+      "title": "Unsupported method handling",
+      "given": "the backend service is running",
+      "when": "a client calls POST /health",
+      "then": "the response is 405 Method Not Allowed"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi",
+      "purpose": "HTTP framework"
+    },
+    {
+      "name": "uvicorn",
+      "repository": "https://github.com/encode/uvicorn",
+      "purpose": "ASGI server"
+    },
+    {
+      "name": "pytest",
+      "repository": "https://github.com/pytest-dev/pytest",
+      "purpose": "test runner"
+    },
+    {
+      "name": "pytest-asyncio",
+      "repository": "https://github.com/pytest-dev/pytest-asyncio",
+      "purpose": "async test support"
+    },
+    {
+      "name": "httpx",
+      "repository": "https://github.com/encode/httpx",
+      "purpose": "async ASGI test client"
+    }
+  ],
+  "target_files": [
+    "backend/pyproject.toml",
+    "backend/src/synextra_backend/app.py",
+    "backend/src/synextra_backend/api/health.py",
+    "backend/tests/conftest.py",
+    "backend/tests/test_health_endpoint.py"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "the service is running",
+      "when": "GET /health is requested",
+      "then": "the response includes status ok and service metadata"
+    },
+    {
+      "if": "the route does not support POST",
+      "when": "POST /health is requested",
+      "then": "the response code is 405"
+    },
+    {
+      "if": "service_name is blank",
+      "when": "create_app is called",
+      "then": "a ValueError is raised"
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer:019c6ba0-54f8-70e1-bb53-042c55c7f562",
+    "verdict": "approved_after_fixes",
+    "notes": [
+      "Finding: main() bound to 127.0.0.1 by default; updated to configurable host/port with default 0.0.0.0.",
+      "Finding: CLI entry point lacked regression coverage; added tests for defaults, env overrides, and invalid port handling."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T12:15:00Z",
+      "actor": "backend-agent",
+      "entry": "Task picked up and status set to todo."
+    },
+    {
+      "timestamp": "2026-02-17T12:24:00Z",
+      "actor": "backend-agent",
+      "entry": "Implemented uv project scaffold, FastAPI app, quality tooling, and TDD tests."
+    },
+    {
+      "timestamp": "2026-02-17T12:28:00Z",
+      "actor": "backend-agent",
+      "entry": "Validation passed for ruff, mypy, and pytest; moved status to review pending subagent review."
+    },
+    {
+      "timestamp": "2026-02-17T13:08:00Z",
+      "actor": "codex",
+      "entry": "Normalized AGENTS/task contract wording to enforce todo->review->done lifecycle and mandatory continuous execution logging."
+    },
+    {
+      "timestamp": "2026-02-17T13:16:00Z",
+      "actor": "explorer-subagent",
+      "entry": "Reviewed backend module and reported host binding + CLI regression coverage gaps."
+    },
+    {
+      "timestamp": "2026-02-17T13:22:00Z",
+      "actor": "codex",
+      "entry": "Applied review feedback: made server host/port configurable and expanded tests for main() runtime behavior."
+    },
+    {
+      "timestamp": "2026-02-17T13:24:00Z",
+      "actor": "codex",
+      "entry": "Re-ran ruff, mypy, and pytest successfully and moved task status to done."
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "task_id": "BE-2026-02-17-002",
+  "feature_branch": "feature/backend/pdf-upload-and-block-chunking",
+  "description": "Implement FastAPI PDF upload ingestion with PyMuPDF block extraction and deterministic token-aware chunking that preserves citation metadata.",
+  "bdd_flows": [
+    {
+      "title": "Upload and chunk a valid research PDF",
+      "given": "the backend service is running and receives a valid PDF file",
+      "when": "a client posts multipart data to POST /v1/rag/pdfs",
+      "then": "the API returns 201 with a document_id, chunk counts, and per-chunk provenance metadata"
+    },
+    {
+      "title": "Reject unsupported upload types",
+      "given": "the backend service receives a non-PDF upload",
+      "when": "a client posts to POST /v1/rag/pdfs",
+      "then": "the API returns 415 with a structured validation error"
+    },
+    {
+      "title": "Preserve reading order and citation provenance",
+      "given": "a PDF page with multi-column text blocks",
+      "when": "the chunking pipeline processes extracted blocks",
+      "then": "resulting chunks are deterministic and include page/block geometry required for citations"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi",
+      "purpose": "upload endpoint and request/response contracts"
+    },
+    {
+      "name": "pymupdf",
+      "repository": "https://github.com/pymupdf/PyMuPDF",
+      "purpose": "PDF block extraction and page geometry access"
+    },
+    {
+      "name": "tiktoken",
+      "repository": "https://github.com/openai/tiktoken",
+      "purpose": "token-aware chunk size accounting"
+    },
+    {
+      "name": "python-multipart",
+      "repository": "https://github.com/Kludex/python-multipart",
+      "purpose": "multipart upload parsing for FastAPI"
+    },
+    {
+      "name": "pytest",
+      "repository": "https://github.com/pytest-dev/pytest",
+      "purpose": "TDD for unit and integration coverage"
+    }
+  ],
+  "target_files": [
+    "backend/src/synextra_backend/api/rag_ingestion.py",
+    "backend/src/synextra_backend/services/pdf_ingestion.py",
+    "backend/src/synextra_backend/services/block_chunker.py",
+    "backend/src/synextra_backend/schemas/rag_ingestion.py",
+    "backend/tests/unit/services/test_block_chunker.py",
+    "backend/tests/integration/api/test_pdf_upload_endpoint.py",
+    "backend/tests/contracts/test_pdf_upload_contract.py",
+    "backend/tests/fixtures/1706.03762v7.pdf"
+  ],
+  "related_adrs": ["backend/adrs/0002-pdf-ingestion-and-chunking.md"],
+  "if_when_then_tests": [
+    {
+      "if": "a valid PDF is uploaded",
+      "when": "the ingestion endpoint is called",
+      "then": "the response includes document_id, chunk_count, and deterministic chunk metadata"
+    },
+    {
+      "if": "a non-PDF MIME type is uploaded",
+      "when": "the ingestion endpoint validates the payload",
+      "then": "the response status is 415 with an error code explaining unsupported media type"
+    },
+    {
+      "if": "a page contains sparse whitespace-only blocks",
+      "when": "chunk normalization runs",
+      "then": "empty blocks are dropped and no empty chunk is persisted"
+    },
+    {
+      "if": "a block exceeds the token limit",
+      "when": "chunk builder evaluates token budget",
+      "then": "the block is split deterministically with configured overlap preserved"
+    },
+    {
+      "if": "the QA fixture 1706.03762v7.pdf is uploaded",
+      "when": "integration tests run",
+      "then": "chunk extraction succeeds for all text pages and provenance fields are populated"
+    }
+  ],
+  "tdd_test_matrix": [
+    {
+      "layer": "unit",
+      "focus": "PyMuPDF block ordering and deterministic chunk construction",
+      "cases": [
+        "sort blocks by y/x coordinates and preserve stable ordering for ties",
+        "split oversized blocks by sentence boundaries before hard token clipping",
+        "attach page_number, bbox, and source_checksum to each produced chunk"
+      ]
+    },
+    {
+      "layer": "integration",
+      "focus": "FastAPI upload endpoint and ingestion service wiring",
+      "cases": [
+        "POST /v1/rag/pdfs returns 201 and persists chunk summaries for 1706.03762v7.pdf",
+        "invalid upload returns 415 with structured error payload",
+        "duplicate file upload handling is deterministic (idempotent hash or explicit conflict)"
+      ]
+    },
+    {
+      "layer": "edge",
+      "focus": "input anomalies and parser robustness",
+      "cases": [
+        "encrypted PDF without password yields explicit 422 parse error",
+        "empty PDF returns validation failure without creating document rows",
+        "very large page block is chunked without exceeding memory budget"
+      ]
+    },
+    {
+      "layer": "frontend_backend_contract",
+      "focus": "upload response schema consumed by frontend ingestion UI",
+      "cases": [
+        "response includes required keys: document_id, filename, page_count, chunk_count, chunks",
+        "each chunk object includes chunk_id, page_number, citation_span, and preview_text",
+        "error payload shape is stable across 4xx ingestion failures"
+      ]
+    }
+  ],
+  "status_lifecycle": ["todo", "review", "done"],
+  "status": "todo",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "pending",
+    "verdict": "pending",
+    "notes": []
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T13:45:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Created initial planning spec for PDF upload and block chunking using backend task contract."
+    },
+    {
+      "timestamp": "2026-02-17T13:48:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Linked ADR 0002 and defined TDD matrix covering unit, integration, edge, and frontend-backend contract tests."
+    },
+    {
+      "timestamp": "2026-02-17T13:50:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Marked task as todo (planning only) with pending required subagent review placeholders."
+    }
+  ]
+}

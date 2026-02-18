@@ -1,0 +1,160 @@
+{
+  "task_id": "BE-2026-02-18-002",
+  "feature_branch": "feature/rag-review-optional-programmatic-synthesis",
+  "description": "Reduce RAG orchestration fragility by making judge review optional, preserving researcher answers for streaming, and removing the extra synthesis model call.",
+  "bdd_flows": [
+    {
+      "title": "Review gate can be bypassed",
+      "given": "a chat request with review_enabled=false",
+      "when": "the orchestrator collects evidence and builds the answer",
+      "then": "it performs a single retrieval pass without invoking the judge loop"
+    },
+    {
+      "title": "Review gate remains available",
+      "given": "a chat request with review_enabled=true",
+      "when": "retrieval returns evidence",
+      "then": "the orchestrator emits review events and enforces judge approval/retry behavior"
+    },
+    {
+      "title": "Streaming does not trigger a second model synthesis",
+      "given": "collect_evidence returns RetrievalResult.answer",
+      "when": "stream_synthesis is called",
+      "then": "it streams programmatic chunks from retrieval answer or simple-summary fallback"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "openai-agents",
+      "repository": "https://github.com/openai/openai-agents-python",
+      "purpose": "retrieval agent and optional judge execution"
+    },
+    {
+      "name": "pytest",
+      "repository": "https://github.com/pytest-dev/pytest",
+      "purpose": "unit and integration regression coverage"
+    }
+  ],
+  "target_files": [
+    "sdk/src/synextra/services/rag_agent_orchestrator.py",
+    "sdk/src/synextra/schemas/rag_chat.py",
+    "sdk/src/synextra/client.py",
+    "backend/tests/unit/services/test_rag_agent_orchestrator.py",
+    "backend/tests/unit/api/test_rag_chat_streaming.py",
+    "backend/AGENTS.md",
+    "AGENTS.md"
+  ],
+  "related_adrs": [
+    "backend/adrs/0004-real-token-streaming.md",
+    "backend/adrs/0005-openai-agents-sdk-migration.md"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "review is disabled",
+      "when": "collect_evidence executes",
+      "then": "retrieval answer is returned without review events"
+    },
+    {
+      "if": "review is enabled",
+      "when": "collect_evidence executes",
+      "then": "review events are emitted and judge behavior is preserved"
+    },
+    {
+      "if": "streaming response is requested",
+      "when": "stream_synthesis runs",
+      "then": "tokens are derived from retrieval.answer or _simple_summary without extra LLM calls"
+    }
+  ],
+  "tdd_test_matrix": [
+    {
+      "layer": "unit",
+      "focus": "orchestrator retrieval/review/synthesis contract",
+      "cases": [
+        "backend/tests/unit/services/test_rag_agent_orchestrator.py"
+      ]
+    },
+    {
+      "layer": "integration",
+      "focus": "end-to-end ingest/chat behavior",
+      "cases": [
+        "backend/tests/integration/test_rag_end_to_end.py"
+      ]
+    },
+    {
+      "layer": "edge",
+      "focus": "stream metadata and retrieval result compatibility",
+      "cases": [
+        "backend/tests/unit/api/test_rag_chat_streaming.py"
+      ]
+    },
+    {
+      "layer": "frontend_backend_contract",
+      "focus": "stream protocol phases and citation metadata",
+      "cases": [
+        "buck2 run //:check"
+      ]
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer:019c720b-9d3d-72e0-a121-b8f2fd9f9cc7",
+    "verdict": "approved_after_fix",
+    "notes": [
+      "Initial adversarial review found a real defect in parallel_search structured-input handling and strict schema compatibility.",
+      "Applied root-cause fix with typed ParallelQuery models and dual-path parsing for JSON string vs native list payloads.",
+      "Targeted re-review confirmed the fix addresses root cause and no residual issues were found."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-18T18:20:00Z",
+      "actor": "codex",
+      "entry": "Set task to todo and inspected SDK/backend orchestration path to confirm where review and synthesis latency/regression risks were introduced."
+    },
+    {
+      "timestamp": "2026-02-18T18:30:00Z",
+      "actor": "codex",
+      "entry": "Implemented optional review gate, propagated retrieval answer through RetrievalResult, and replaced streaming synthesis LLM call with programmatic chunk streaming."
+    },
+    {
+      "timestamp": "2026-02-18T18:37:00Z",
+      "actor": "codex",
+      "entry": "Updated regression tests and ran uv backend unit/integration suites plus buck2 run //:check (backend/sdk/cli/frontend checks all passed)."
+    },
+    {
+      "timestamp": "2026-02-18T18:38:00Z",
+      "actor": "codex",
+      "entry": "Moved status to review and queued mandatory adversarial subagent review."
+    },
+    {
+      "timestamp": "2026-02-18T18:42:00Z",
+      "actor": "explorer-subagent",
+      "entry": "Adversarial review found high-severity parallel_search input-contract/schema mismatch and requested root-cause fix."
+    },
+    {
+      "timestamp": "2026-02-18T18:44:00Z",
+      "actor": "codex",
+      "entry": "Fixed parallel_search schema/input parsing, added structured-payload regression test, and re-ran required unit/integration tests."
+    },
+    {
+      "timestamp": "2026-02-18T18:46:00Z",
+      "actor": "explorer-subagent",
+      "entry": "Targeted fix verification confirmed root cause resolved; no residual findings."
+    },
+    {
+      "timestamp": "2026-02-18T18:47:00Z",
+      "actor": "codex",
+      "entry": "Final validation succeeded via buck2 run //:check; moved task status to done."
+    },
+    {
+      "timestamp": "2026-02-18T18:48:00Z",
+      "actor": "codex",
+      "entry": "Updated root/backend AGENTS durable guidance with strict function_tool schema rule for typed payload models and structured-input regression tests."
+    }
+  ]
+}

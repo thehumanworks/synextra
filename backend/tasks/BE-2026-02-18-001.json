@@ -1,0 +1,171 @@
+{
+  "task_id": "BE-2026-02-18-001",
+  "feature_branch": "feature/sdk/dependency-inversion-and-cli-split",
+  "description": "Invert dependency direction so backend consumes a standalone synextra SDK, split CLI into its own workspace, and keep backend API compatibility via thin wrappers.",
+  "bdd_flows": [
+    {
+      "title": "Backend uses standalone SDK",
+      "given": "the backend is installed in monorepo development mode",
+      "when": "the FastAPI app initializes shared state",
+      "then": "it constructs Synextra from the standalone SDK package instead of backend-owned SDK logic"
+    },
+    {
+      "title": "CLI is isolated from SDK package",
+      "given": "the cli workspace is installed",
+      "when": "a user runs synextra ingest/query commands",
+      "then": "the CLI imports and calls the SDK package without embedding CLI code inside sdk workspace"
+    },
+    {
+      "title": "Compatibility import paths remain stable",
+      "given": "existing backend modules/tests import synextra_backend service/retrieval/repository paths",
+      "when": "the code executes after dependency inversion",
+      "then": "wrappers re-export SDK implementations so behavior and tests remain intact"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "openai-agents",
+      "repository": "https://github.com/openai/openai-agents-python",
+      "purpose": "SDK orchestration runtime"
+    },
+    {
+      "name": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi",
+      "purpose": "backend API routing"
+    },
+    {
+      "name": "typer",
+      "repository": "https://github.com/fastapi/typer",
+      "purpose": "standalone CLI workspace"
+    },
+    {
+      "name": "pytest",
+      "repository": "https://github.com/pytest-dev/pytest",
+      "purpose": "regression and integration validation"
+    }
+  ],
+  "target_files": [
+    "sdk/src/synextra/client.py",
+    "sdk/src/synextra/repositories/rag_document_repository.py",
+    "sdk/src/synextra/retrieval/bm25_search.py",
+    "sdk/src/synextra/schemas/rag_chat.py",
+    "sdk/src/synextra/services/rag_agent_orchestrator.py",
+    "sdk/pyproject.toml",
+    "cli/pyproject.toml",
+    "cli/src/synextra_cli/main.py",
+    "backend/src/synextra_backend/app.py",
+    "backend/src/synextra_backend/api/rag_ingestion.py",
+    "backend/src/synextra_backend/api/rag_chat.py",
+    "backend/src/synextra_backend/api/rag_persistence.py",
+    "backend/src/synextra_backend/services/rag_agent_orchestrator.py",
+    "backend/src/synextra_backend/schemas/rag_chat.py",
+    "backend/pyproject.toml",
+    "tools/buck/workspace.sh",
+    "tools/buck/cli.sh",
+    "BUCK"
+  ],
+  "related_adrs": [
+    "backend/adrs/0006-sdk-dependency-inversion.md",
+    "sdk/adrs/0001-self-contained-sdk-and-cli-split.md"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "backend bootstraps app state",
+      "when": "create_app() executes",
+      "then": "state objects are sourced from standalone SDK types"
+    },
+    {
+      "if": "cli workspace runs ingest command",
+      "when": "synextra ingest <file> executes",
+      "then": "document ingestion succeeds through SDK calls"
+    },
+    {
+      "if": "backend compatibility wrappers are imported",
+      "when": "unit tests import legacy paths",
+      "then": "types/functions resolve to SDK implementations and tests pass"
+    }
+  ],
+  "tdd_test_matrix": [
+    {
+      "layer": "unit",
+      "focus": "wrapper compatibility and SDK local behavior",
+      "cases": [
+        "service/retrieval/repository wrappers import correctly",
+        "sdk text ingestion smoke test passes"
+      ]
+    },
+    {
+      "layer": "integration",
+      "focus": "backend end-to-end ingestion/chat flow",
+      "cases": [
+        "backend integration suite passes with SDK-backed state"
+      ]
+    },
+    {
+      "layer": "edge",
+      "focus": "error payload parity",
+      "cases": [
+        "rag_ingestion endpoints still return structured JSON errors via wrappers"
+      ]
+    },
+    {
+      "layer": "frontend_backend_contract",
+      "focus": "streaming and response schema compatibility",
+      "cases": [
+        "backend chat streaming tests pass with unchanged event/citation contract"
+      ]
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer:019c71e4-8fdb-7db0-a6c9-420210bf481c",
+    "verdict": "approved_after_fix",
+    "notes": [
+      "Subagent found CLI chat-loop syntax risk; verified and fixed exception handling to explicit EOFError/KeyboardInterrupt clauses.",
+      "Follow-up review confirmed the importability/root-cause issue is resolved."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-18T16:20:00Z",
+      "actor": "codex",
+      "entry": "Mapped SDK/backend coupling and identified backend->sdk inversion points plus CLI extraction surface."
+    },
+    {
+      "timestamp": "2026-02-18T16:33:00Z",
+      "actor": "codex",
+      "entry": "Created standalone SDK runtime modules under sdk/src/synextra and added separate cli workspace with independent pyproject and tests."
+    },
+    {
+      "timestamp": "2026-02-18T16:52:00Z",
+      "actor": "codex",
+      "entry": "Converted backend core service/retrieval/repository/schema modules to compatibility wrappers over SDK and fixed strict lint/mypy blockers."
+    },
+    {
+      "timestamp": "2026-02-18T17:20:00Z",
+      "actor": "codex",
+      "entry": "Added ADRs for dependency inversion and SDK/CLI workspace split; updated AGENTS durable guidance for SDK ownership boundaries."
+    },
+    {
+      "timestamp": "2026-02-18T17:58:00Z",
+      "actor": "explorer-subagent",
+      "entry": "Adversarial review completed with one high-severity finding in CLI exception syntax; targeted fix requested."
+    },
+    {
+      "timestamp": "2026-02-18T18:08:00Z",
+      "actor": "codex",
+      "entry": "Applied CLI exception-handling fix and re-ran cli lint/typecheck/tests; follow-up subagent verification confirmed root cause resolved."
+    },
+    {
+      "timestamp": "2026-02-18T18:13:00Z",
+      "actor": "codex",
+      "entry": "Validation complete: buck2 run //:install, buck2 run //:check, buck2 run //:dev startup smoke (backend 8000 + frontend 3000 listeners), and CLI ingest smoke run succeeded."
+    }
+  ]
+}

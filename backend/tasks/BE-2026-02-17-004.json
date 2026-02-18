@@ -1,0 +1,172 @@
+{
+  "task_id": "BE-2026-02-17-004",
+  "feature_branch": "feature/backend/gpt52-agent-orchestration",
+  "description": "Implement GPT-5.2-based RAG orchestration with mode-conditional tool selection, session-aware memory, parallel tool calls, and citation-required structured JSON outputs.",
+  "bdd_flows": [
+    {
+      "title": "Embedded mode uses BM25 retrieval",
+      "given": "a session has ingested and embedded-indexed chunks",
+      "when": "a client posts a chat request with mode=embedded",
+      "then": "the orchestrator calls only BM25 embedded retrieval and returns citation-backed structured JSON"
+    },
+    {
+      "title": "Vector mode uses OpenAI file search",
+      "given": "a session has vector-store persisted chunks",
+      "when": "a client posts a chat request with mode=vector",
+      "then": "the orchestrator calls only OpenAI file_search and returns citation-backed structured JSON"
+    },
+    {
+      "title": "Hybrid mode merges parallel evidence",
+      "given": "both retrieval stores are available",
+      "when": "a client posts a chat request with mode=hybrid",
+      "then": "the orchestrator executes retrieval tools in parallel, merges evidence, and returns normalized citations"
+    },
+    {
+      "title": "Session memory influences follow-up answers",
+      "given": "a session contains previous user and assistant turns",
+      "when": "a follow-up question is submitted",
+      "then": "the response uses relevant prior context while preserving citation requirements"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi",
+      "purpose": "chat endpoint and schema validation"
+    },
+    {
+      "name": "openai",
+      "repository": "https://github.com/openai/openai-python",
+      "purpose": "GPT-5.2 responses API and vector file_search tool integration"
+    },
+    {
+      "name": "pydantic",
+      "repository": "https://github.com/pydantic/pydantic",
+      "purpose": "strict structured output contracts with citation validation"
+    },
+    {
+      "name": "anyio",
+      "repository": "https://github.com/agronholm/anyio",
+      "purpose": "bounded parallel tool-call orchestration"
+    },
+    {
+      "name": "pytest",
+      "repository": "https://github.com/pytest-dev/pytest",
+      "purpose": "TDD test execution"
+    }
+  ],
+  "target_files": [
+    "backend/src/synextra_backend/api/rag_chat.py",
+    "backend/src/synextra_backend/services/rag_agent_orchestrator.py",
+    "backend/src/synextra_backend/services/session_memory.py",
+    "backend/src/synextra_backend/services/retrieval/bm25_search.py",
+    "backend/src/synextra_backend/services/retrieval/openai_file_search.py",
+    "backend/src/synextra_backend/services/retrieval/evidence_merger.py",
+    "backend/src/synextra_backend/schemas/rag_chat.py",
+    "backend/tests/unit/services/test_rag_agent_orchestrator.py",
+    "backend/tests/unit/services/test_citation_validator.py",
+    "backend/tests/integration/api/test_rag_chat_endpoint.py",
+    "backend/tests/contracts/test_rag_chat_contract.py",
+    "backend/tests/integration/test_frontend_backend_rag_contract.py",
+    "backend/tests/fixtures/1706.03762v7.pdf"
+  ],
+  "related_adrs": [
+    "backend/adrs/0002-pdf-ingestion-and-chunking.md",
+    "backend/adrs/0003-dual-store-retrieval-and-agent-orchestration.md"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "mode=embedded",
+      "when": "the orchestrator plans tool usage",
+      "then": "only BM25 embedded tool calls are emitted"
+    },
+    {
+      "if": "mode=vector",
+      "when": "the orchestrator plans tool usage",
+      "then": "only OpenAI file_search tool calls are emitted"
+    },
+    {
+      "if": "mode=hybrid",
+      "when": "the orchestrator executes retrieval",
+      "then": "embedded and vector tools run concurrently and merged evidence is reranked"
+    },
+    {
+      "if": "the generated response omits citations for factual statements",
+      "when": "response schema validation runs",
+      "then": "the request fails with validation error or triggers one corrective regeneration attempt"
+    },
+    {
+      "if": "session_id has prior turns",
+      "when": "a follow-up request is processed",
+      "then": "memory retrieval includes prior context while keeping tool-call scope bounded"
+    },
+    {
+      "if": "1706.03762v7.pdf is loaded in both stores",
+      "when": "end-to-end chat integration tests run",
+      "then": "responses include citations that map to the expected document/page/chunk identifiers"
+    }
+  ],
+  "tdd_test_matrix": [
+    {
+      "layer": "unit",
+      "focus": "mode planner, tool router, and citation validator",
+      "cases": [
+        "mode switch maps to allowed tool set: embedded, vector, hybrid",
+        "citation validator rejects answers lacking citation objects",
+        "memory windowing returns deterministic turn subsets by session_id"
+      ]
+    },
+    {
+      "layer": "integration",
+      "focus": "chat endpoint orchestration and session behavior",
+      "cases": [
+        "POST /v1/rag/sessions/{session_id}/messages in embedded mode returns citation-backed JSON",
+        "hybrid mode performs parallel tool calls and merges evidence deterministically",
+        "follow-up question reuses stored session turns and keeps latency budget within thresholds"
+      ]
+    },
+    {
+      "layer": "edge",
+      "focus": "fault handling and schema enforcement",
+      "cases": [
+        "missing session_id returns 422 validation error",
+        "tool timeout in one branch of hybrid mode still returns controlled error envelope",
+        "citation mismatch against retrieved evidence triggers safe failure, not silent success"
+      ]
+    },
+    {
+      "layer": "frontend_backend_contract",
+      "focus": "strict JSON response payload required by frontend chat renderer",
+      "cases": [
+        "response top-level fields include answer, citations, mode, tools_used, and session_id",
+        "each citation includes document_id, page_number, chunk_id, and supporting_quote",
+        "error payload preserves stable schema for UI fallback handling"
+      ]
+    }
+  ],
+  "status_lifecycle": ["todo", "review", "done"],
+  "status": "todo",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "pending",
+    "verdict": "pending",
+    "notes": []
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-17T13:57:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Created orchestration planning spec covering GPT-5.2 mode-conditional retrieval, session memory, and citation-required outputs."
+    },
+    {
+      "timestamp": "2026-02-17T13:59:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Bound task scope to ADR 0003 architecture with parallel tool-call behavior and structured output validation criteria."
+    },
+    {
+      "timestamp": "2026-02-17T14:00:00Z",
+      "actor": "backend-spec-agent",
+      "entry": "Left task in todo lifecycle stage with required_subagent_review placeholders pending implementation review."
+    }
+  ]
+}
