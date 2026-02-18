@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import AsyncIterator
 from dataclasses import asdict, dataclass
 from typing import Any
 
 import anyio
-from openai import OpenAI, pydantic_function_tool
+from openai import AsyncOpenAI, OpenAI, pydantic_function_tool
 from pydantic import BaseModel
 
 from synextra_backend.repositories.rag_document_repository import RagDocumentRepository
@@ -92,6 +93,13 @@ class AgentCallResult:
     tools_used: list[str]
 
 
+@dataclass(frozen=True)
+class RetrievalResult:
+    evidence: list[EvidenceChunk]
+    citations: list[RagCitation]
+    tools_used: list[str]
+
+
 class RagAgentOrchestrator:
     """Coordinates retrieval and response synthesis for chat requests."""
 
@@ -108,6 +116,7 @@ class RagAgentOrchestrator:
         self._session_memory = session_memory
         self._citation_validator = citation_validator or CitationValidator()
         self._openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+        self._async_openai_client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
     async def handle_message(self, *, session_id: str, request: RagChatRequest) -> RagChatResponse:
         prompt = request.prompt.strip()
@@ -464,3 +473,113 @@ class RagAgentOrchestrator:
             return _simple_summary(evidence)
 
         return _simple_summary(evidence)
+
+    async def collect_evidence(
+        self,
+        *,
+        session_id: str,
+        request: RagChatRequest,
+    ) -> RetrievalResult:
+        """Run retrieval only (no answer synthesis). Returns evidence + citations."""
+        prompt = request.prompt.strip()
+        mode = request.retrieval_mode
+        reasoning_effort = request.reasoning_effort
+        tools_used: list[str] = []
+
+        self._session_memory.append_turn(
+            session_id=session_id,
+            role="user",
+            content=prompt,
+            mode=mode,
+        )
+
+        agent_result: AgentCallResult | None = None
+        try:
+            model = os.getenv("SYNEXTRA_CHAT_MODEL", "gpt-5.2")
+            agent_result = self._call_agent(
+                client=self._openai_client,
+                model=model,
+                instructions=self._agent_instructions_for_mode(mode),
+                input=f"Question: {prompt}",
+                reasoning_effort=reasoning_effort,
+                tools=self._tools_for_mode(mode),
+            )
+            tools_used.extend(agent_result.tools_used)
+        except Exception:
+            self._append_unique(tools_used, "agent_retrieval_failed")
+
+        if agent_result is not None and agent_result.evidence:
+            evidence = agent_result.evidence
+        else:
+            evidence, fallback_tools = await self._run_manual_retrieval(
+                prompt=prompt, mode=mode,
+            )
+            for tool in fallback_tools:
+                self._append_unique(tools_used, tool)
+
+        citations = self._build_citations(evidence)
+        validation = self._citation_validator.validate(citations)
+        if not validation.ok:
+            self._append_unique(tools_used, "citation_validation_failed")
+
+        return RetrievalResult(
+            evidence=evidence,
+            citations=citations,
+            tools_used=tools_used,
+        )
+
+    def _synthesis_context(
+        self,
+        *,
+        prompt: str,
+        citations: list[RagCitation],
+    ) -> tuple[str, str]:
+        """Build system + user prompts for synthesis. Shared by sync and streaming paths."""
+        context_lines: list[str] = []
+        for idx, citation in enumerate(citations, start=1):
+            context_lines.append(
+                f"[{idx}] doc={citation.document_id} page={citation.page_number}"
+                f"chunk={citation.chunk_id}: {citation.supporting_quote}"
+            )
+
+        system = (
+            "You are a retrieval-augmented assistant."
+            "Answer the user's question using only the provided evidence. "
+            "If the evidence is insufficient, say you don't know. Keep the answer concise."
+        )
+        user = f"Question: {prompt}\n\nEvidence:\n" + "\n".join(context_lines)
+        return system, user
+
+    async def stream_synthesis(
+        self,
+        *,
+        prompt: str,
+        retrieval: RetrievalResult,
+        reasoning_effort: ReasoningEffort,
+    ) -> AsyncIterator[str]:
+        """Stream answer tokens from OpenAI. Falls back to simple summary on error."""
+        if not retrieval.evidence:
+            yield (
+                "I couldn't find relevant information in the indexed "
+                "documents to answer that question."
+            )
+            return
+
+        model = os.getenv("SYNEXTRA_CHAT_MODEL", "gpt-5.2")
+        system, user = self._synthesis_context(
+            prompt=prompt, citations=retrieval.citations,
+        )
+
+        try:
+            stream = await self._async_openai_client.responses.create(
+                model=model,
+                instructions=system,
+                input=user,
+                reasoning={"effort": reasoning_effort},
+                stream=True,
+            )
+            async for event in stream:
+                if event.type == "response.output_text.delta":
+                    yield event.delta
+        except Exception:
+            yield _simple_summary(retrieval.evidence)

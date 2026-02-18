@@ -250,6 +250,12 @@ def chunk_pdf_blocks(
             if current_segments and current_tokens + seg.token_count > token_target:
                 finalize_current()
 
+            # If overlap alone leaves insufficient room for the next segment,
+            # drop the overlap to keep chunks within token_target.
+            if current_segments and current_tokens + seg.token_count > token_target:
+                current_segments = []
+                current_tokens = 0
+
             current_segments.append(seg)
             current_tokens += seg.token_count
 

@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 
-import anyio
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from synextra_backend.schemas.errors import ApiErrorResponse, error_response
 from synextra_backend.schemas.rag_chat import RagChatRequest, RagChatResponse
 from synextra_backend.services.rag_agent_orchestrator import RagAgentOrchestrator
+
+_STREAM_METADATA_SEPARATOR = "\x1e"
 
 
 def _get_orchestrator(request: Request) -> RagAgentOrchestrator:
@@ -19,15 +21,6 @@ def _get_orchestrator(request: Request) -> RagAgentOrchestrator:
 
 
 ORCHESTRATOR_DEPENDENCY = Depends(_get_orchestrator)
-
-
-async def _answer_chunk_stream(answer: str, *, chunk_size: int = 48) -> AsyncIterator[str]:
-    if not answer:
-        return
-
-    for start in range(0, len(answer), chunk_size):
-        yield answer[start : start + chunk_size]
-        await anyio.lowlevel.checkpoint()
 
 
 def build_rag_chat_router() -> APIRouter:
@@ -77,7 +70,7 @@ def build_rag_chat_router() -> APIRouter:
     ) -> Response:
         try:
             hybrid_request = request.model_copy(update={"retrieval_mode": "hybrid"})
-            response = await orchestrator.handle_message(
+            retrieval = await orchestrator.collect_evidence(
                 session_id=session_id,
                 request=hybrid_request,
             )
@@ -89,10 +82,42 @@ def build_rag_chat_router() -> APIRouter:
             )
             return JSONResponse(status_code=500, content=payload.model_dump())
 
+        async def token_stream() -> AsyncIterator[str]:
+            answer_parts: list[str] = []
+            async for token in orchestrator.stream_synthesis(
+                prompt=hybrid_request.prompt.strip(),
+                retrieval=retrieval,
+                reasoning_effort=hybrid_request.reasoning_effort,
+            ):
+                answer_parts.append(token)
+                yield token
+
+            full_answer = "".join(answer_parts)
+            orchestrator._session_memory.append_turn(
+                session_id=session_id,
+                role="assistant",
+                content=full_answer,
+                mode=hybrid_request.retrieval_mode,
+                citations=retrieval.citations,
+                tools_used=retrieval.tools_used,
+            )
+
+            metadata = {
+                "citations": [c.model_dump() for c in retrieval.citations],
+                "mode": hybrid_request.retrieval_mode,
+                "tools_used": retrieval.tools_used,
+            }
+            yield _STREAM_METADATA_SEPARATOR + json.dumps(
+                metadata, default=str,
+            )
+
         return StreamingResponse(
-            _answer_chunk_stream(response.answer),
+            token_stream(),
             media_type="text/plain; charset=utf-8",
-            headers={"cache-control": "no-cache"},
+            headers={
+                "cache-control": "no-cache",
+                "x-accel-buffering": "no",
+            },
         )
 
     return router

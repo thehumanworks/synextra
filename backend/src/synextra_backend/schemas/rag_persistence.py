@@ -10,7 +10,7 @@ class RagPersistenceResponse(BaseModel):
 
     document_id: str
     store: Literal["embedded", "vector-store"]
-    status: Literal["ok"]
+    status: Literal["ok", "queued"]
     indexed_chunk_count: int | None = Field(
         default=None,
         description="Number of chunks indexed in embedded store, when applicable",

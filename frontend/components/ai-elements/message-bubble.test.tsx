@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import type { Citation } from "@/lib/chat/structured-response";
+
 import { AiMessageBubble } from "@/components/ai-elements/message-bubble";
 
 describe("AiMessageBubble", () => {
@@ -28,5 +30,43 @@ describe("AiMessageBubble", () => {
     render(<AiMessageBubble role="tool" text="Tool output" />);
 
     expect(screen.getByText("tool")).toBeInTheDocument();
+  });
+
+  it("renders citation accordion when citations are provided", () => {
+    const citations: Citation[] = [
+      {
+        document_id: "doc-1",
+        chunk_id: "c1",
+        page_number: 5,
+        supporting_quote: "Relevant excerpt from the document.",
+        source_tool: "bm25",
+      },
+    ];
+
+    render(<AiMessageBubble role="assistant" text="Answer text" citations={citations} />);
+
+    expect(screen.getByRole("button", { name: /used 1 source/i })).toBeInTheDocument();
+  });
+
+  it("does not render citation accordion for user messages even if citations passed", () => {
+    const citations: Citation[] = [
+      {
+        document_id: "doc-1",
+        chunk_id: "c1",
+        page_number: 5,
+        supporting_quote: "quote",
+        source_tool: "bm25",
+      },
+    ];
+
+    render(<AiMessageBubble role="user" text="User text" citations={citations} />);
+
+    expect(screen.queryByRole("button", { name: /used/i })).not.toBeInTheDocument();
+  });
+
+  it("does not render citation accordion when citations are empty", () => {
+    render(<AiMessageBubble role="assistant" text="Answer" citations={[]} />);
+
+    expect(screen.queryByRole("button", { name: /used/i })).not.toBeInTheDocument();
   });
 });

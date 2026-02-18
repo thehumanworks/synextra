@@ -54,6 +54,9 @@
 - For repeated near-duplicate citations, fingerprint normalized supporting quotes (prefix-based) rather than relying on chunk ids alone.
 - Current PDF chunking defaults are `token_target=700` and `overlap_tokens=120`; ingestion uses `chunk_pdf_blocks` without runtime overrides.
 - Vector persistence uploads one file per stored chunk, while synthesis context uses `supporting_quote` truncated to 240 chars per citation; tune chunk size with that quote window in mind.
+- Upload flow is hybrid: `/v1/rag/pdfs` and `/persist/embedded` are synchronous, while `POST /v1/rag/documents/{document_id}/persist/vector-store` queues vector persistence in a background task and returns `status=queued` until persistence is complete.
+- Vector persistence status can be polled via `GET /v1/rag/documents/{document_id}/persist/vector-store` (`status=ok` with `vector_store_id`/`file_ids`, `status=queued` while in-flight, or `vector_store_not_persisted` when idle).
+- Background vector persistence dedupe is process-local (in-memory in-flight guard with TTL), so strict cross-worker exactly-once guarantees require an external lock/state store in addition to OpenAI request idempotency keys.
 - OpenAI SDK and `OPENAI_API_KEY` are required backend dependencies for RAG orchestration/search/persistence; keep `openai` imports at module top level and avoid key-presence gating paths.
 - For Responses API migration, prefer native `instructions` + `input` fields over chat-style role arrays when no multi-item context object is required.
 - For GPT-5.2 reasoning controls in Responses API, pass `reasoning={"effort": ...}`; supported values are `none|low|medium|high|xhigh` (`minimal` is not listed for GPT-5.2), and model default is `none` when omitted.
@@ -62,3 +65,12 @@
 - Any edit to `rag_agent_orchestrator.py` should run both `backend/tests/unit/services/test_rag_agent_orchestrator.py` and `backend/tests/integration/test_rag_end_to_end.py` to catch sync/async contract breaks and tool-wiring regressions before handoff.
 - For chat `500` diagnosis, prioritize API error payload + traceback first; uvicorn's `Invalid HTTP request received` warning is often transport noise rather than the root exception.
 - Playwright skill wrapper may lag upstream CLI naming (`playwright-cli` vs `playwright-mcp`); if wrapper fails, use `npx playwright@latest ...` commands directly for screenshots/verification.
+- Stream metadata protocol: `/messages/stream` appends a `\x1e` (ASCII Record Separator) + JSON trailer after the answer text containing `{citations, mode, tools_used}`. Frontend parses this via `splitStreamedText()` in `lib/chat/stream-metadata.ts` at render time; during active streaming the trailer is not yet present so the raw text displays cleanly.
+- Citation accordion is in `components/chat/citation-accordion.tsx` (extracted from `StructuredMessage`). `AiMessageBubble` accepts an optional `citations` prop and renders the accordion below the answer. Do not duplicate citation rendering in both `StructuredMessage` and `AiMessageBubble`—use one path per render mode.
+- When switching render pipelines (e.g. structured JSON to streaming), audit all metadata channels (citations, agent events, mode badges) for data loss before merging; streaming-only paths silently drop non-text data unless explicitly forwarded.
+- Real token streaming uses a two-phase architecture: `collect_evidence()` (retrieval, non-streamed) → `stream_synthesis()` (async generator, streamed via `AsyncOpenAI`). See `backend/adrs/0004-real-token-streaming.md`.
+- For streaming from OpenAI through FastAPI, always use `AsyncOpenAI` (not sync `OpenAI`); sync clients block the event loop and serialize all chunks to memory before sending.
+- Set `X-Accel-Buffering: no` header on all streaming responses to prevent nginx/reverse-proxy buffering. Also set `Cache-Control: no-cache`.
+- `GZipMiddleware` buffers `text/plain` streaming responses entirely before compressing; never use it on routes that return `StreamingResponse`. It auto-skips `text/event-stream` but not `text/plain`.
+- The orchestrator maintains both `OpenAI` (sync, for the `_call_agent` tool-calling loop) and `AsyncOpenAI` (async, for `stream_synthesis`). Do not replace one with the other — the agent loop is synchronous by design.
+- For UI regression testing on streaming features, verify both the real-time token display (isStreaming=true path skips metadata parsing) and the post-stream citation rendering (isStreaming=false path parses metadata trailer).

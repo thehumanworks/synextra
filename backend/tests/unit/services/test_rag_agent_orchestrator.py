@@ -8,9 +8,11 @@ import pytest
 from synextra_backend.repositories.rag_document_repository import InMemoryRagDocumentRepository
 from synextra_backend.retrieval.bm25_search import Bm25IndexStore
 from synextra_backend.retrieval.types import EvidenceChunk
+from synextra_backend.schemas.rag_chat import RagChatRequest
 from synextra_backend.services.rag_agent_orchestrator import (
     AgentCallResult,
     RagAgentOrchestrator,
+    RetrievalResult,
     _simple_summary,
 )
 from synextra_backend.services.session_memory import SessionMemory
@@ -198,3 +200,165 @@ async def test_run_retrieval_prefers_agent_tool_calls_when_available(
     assert result.citations
     assert result.citations[0].source_tool == "openai_vector_store_search"
     assert "vector_search" in result.tools_used
+
+
+@pytest.mark.asyncio
+async def test_collect_evidence_returns_retrieval_result_without_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeOpenAI:
+        def __init__(self, *, api_key: str) -> None:
+            pass
+
+    monkeypatch.setattr(
+        "synextra_backend.services.rag_agent_orchestrator.OpenAI",
+        _FakeOpenAI,
+    )
+    monkeypatch.setattr(
+        "synextra_backend.services.rag_agent_orchestrator.AsyncOpenAI",
+        _FakeOpenAI,
+    )
+
+    orchestrator = _orchestrator()
+
+    def _fake_call_agent(**_kwargs: Any) -> AgentCallResult:
+        return AgentCallResult(
+            output_text="Agent answer (should be discarded for streaming)",
+            evidence=[
+                _chunk(chunk_id="c1", text="Evidence text.", source_tool="bm25_search"),
+            ],
+            tools_used=["bm25_search"],
+        )
+
+    monkeypatch.setattr(orchestrator, "_call_agent", _fake_call_agent)
+
+    request = RagChatRequest(prompt="What?", retrieval_mode="hybrid")
+    result = await orchestrator.collect_evidence(session_id="s1", request=request)
+
+    assert isinstance(result, RetrievalResult)
+    assert len(result.evidence) == 1
+    assert len(result.citations) == 1
+    assert "bm25_search" in result.tools_used
+    # RetrievalResult has no answer field
+    assert not hasattr(result, "answer")
+
+
+@pytest.mark.asyncio
+async def test_stream_synthesis_yields_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SYNEXTRA_CHAT_MODEL", "gpt-test")
+
+    emitted_tokens = ["The ", "Transformer ", "model."]
+
+    class _FakeEvent:
+        def __init__(self, event_type: str, delta: str = "") -> None:
+            self.type = event_type
+            self.delta = delta
+
+    class _FakeStream:
+        def __init__(self) -> None:
+            self._events = [
+                _FakeEvent("response.output_text.delta", "The "),
+                _FakeEvent("response.output_text.delta", "Transformer "),
+                _FakeEvent("response.output_text.delta", "model."),
+                _FakeEvent("response.output_text.done"),
+                _FakeEvent("response.completed"),
+            ]
+            self._idx = 0
+
+        def __aiter__(self) -> _FakeStream:
+            return self
+
+        async def __anext__(self) -> _FakeEvent:
+            if self._idx >= len(self._events):
+                raise StopAsyncIteration
+            event = self._events[self._idx]
+            self._idx += 1
+            return event
+
+    class _FakeAsyncResponses:
+        async def create(self, **kwargs: Any) -> _FakeStream:
+            assert kwargs.get("stream") is True
+            return _FakeStream()
+
+    class _FakeAsyncOpenAI:
+        def __init__(self, *, api_key: str) -> None:
+            self.responses = _FakeAsyncResponses()
+
+    monkeypatch.setattr(
+        "synextra_backend.services.rag_agent_orchestrator.AsyncOpenAI",
+        _FakeAsyncOpenAI,
+    )
+    monkeypatch.setattr(
+        "synextra_backend.services.rag_agent_orchestrator.OpenAI",
+        lambda **_: types.SimpleNamespace(),
+    )
+
+    orchestrator = _orchestrator()
+    retrieval = RetrievalResult(
+        evidence=[_chunk(chunk_id="c1", text="Evidence.")],
+        citations=orchestrator._build_citations(
+            [_chunk(chunk_id="c1", text="Evidence.")]
+        ),
+        tools_used=["bm25_search"],
+    )
+
+    tokens: list[str] = []
+    async for token in orchestrator.stream_synthesis(
+        prompt="What is the Transformer?",
+        retrieval=retrieval,
+        reasoning_effort="medium",
+    ):
+        tokens.append(token)
+
+    assert tokens == emitted_tokens
+    assert "".join(tokens) == "The Transformer model."
+
+
+@pytest.mark.asyncio
+async def test_stream_synthesis_falls_back_on_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeAsyncResponses:
+        async def create(self, **kwargs: Any) -> None:
+            raise RuntimeError("OpenAI API error")
+
+    class _FakeAsyncOpenAI:
+        def __init__(self, *, api_key: str) -> None:
+            self.responses = _FakeAsyncResponses()
+
+    monkeypatch.setattr(
+        "synextra_backend.services.rag_agent_orchestrator.AsyncOpenAI",
+        _FakeAsyncOpenAI,
+    )
+    monkeypatch.setattr(
+        "synextra_backend.services.rag_agent_orchestrator.OpenAI",
+        lambda **_: types.SimpleNamespace(),
+    )
+
+    orchestrator = _orchestrator()
+    evidence = [
+        _chunk(
+            chunk_id="c1",
+            text="The Transformer is based on attention. It uses multi-head attention.",
+        ),
+    ]
+    retrieval = RetrievalResult(
+        evidence=evidence,
+        citations=orchestrator._build_citations(evidence),
+        tools_used=["bm25_search"],
+    )
+
+    tokens: list[str] = []
+    async for token in orchestrator.stream_synthesis(
+        prompt="What?",
+        retrieval=retrieval,
+        reasoning_effort="medium",
+    ):
+        tokens.append(token)
+
+    # Falls back to _simple_summary which returns joined sentences
+    full_text = "".join(tokens)
+    assert "Transformer" in full_text
+    assert "attention" in full_text

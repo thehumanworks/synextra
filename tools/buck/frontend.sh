@@ -28,36 +28,36 @@ has_npm_script() {
 }
 
 case "$1" in
-  install)
-    npm install
-    ;;
-  lint)
-    npm run lint
-    ;;
-  test)
-    if has_npm_script test; then
-      npm run test
-    else
-      echo "frontend test script is not defined in package.json" >&2
-      exit 2
-    fi
-    ;;
-  typecheck)
-    if has_npm_script typecheck; then
-      npm run typecheck
-    else
-      echo "frontend typecheck script is not defined in package.json" >&2
-      exit 2
-    fi
-    ;;
-  build)
-    npm run build
-    ;;
-  dev)
-    npm run dev
-    ;;
-  *)
-    echo "unknown frontend action: $1" >&2
+install)
+  npm install
+  ;;
+lint)
+  npm run lint
+  ;;
+test)
+  if has_npm_script test; then
+    npm run test
+  else
+    echo "frontend test script is not defined in package.json" >&2
     exit 2
-    ;;
+  fi
+  ;;
+typecheck)
+  if has_npm_script typecheck; then
+    npm run typecheck
+  else
+    echo "frontend typecheck script is not defined in package.json" >&2
+    exit 2
+  fi
+  ;;
+build)
+  npm run build
+  ;;
+dev)
+  npm run dev --host
+  ;;
+*)
+  echo "unknown frontend action: $1" >&2
+  exit 2
+  ;;
 esac

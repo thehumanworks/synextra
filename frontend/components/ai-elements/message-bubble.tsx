@@ -2,7 +2,9 @@
 
 import { motion } from "motion/react";
 
+import { CitationAccordion } from "@/components/chat/citation-accordion";
 import { MarkdownResponse } from "@/components/chat/markdown-response";
+import type { Citation } from "@/lib/chat/structured-response";
 import { cn } from "@/lib/utils";
 
 type MessageRole = "user" | "assistant" | "system" | string;
@@ -11,9 +13,15 @@ type AiMessageBubbleProps = {
   role: MessageRole;
   text: string;
   isStreaming?: boolean;
+  citations?: Citation[];
 };
 
-export function AiMessageBubble({ role, text, isStreaming = false }: AiMessageBubbleProps) {
+export function AiMessageBubble({
+  role,
+  text,
+  isStreaming = false,
+  citations,
+}: AiMessageBubbleProps) {
   const isUser = role === "user";
 
   return (
@@ -38,6 +46,9 @@ export function AiMessageBubble({ role, text, isStreaming = false }: AiMessageBu
           {text}
         </MarkdownResponse>
       )}
+      {!isUser && citations && citations.length > 0 ? (
+        <CitationAccordion citations={citations} />
+      ) : null}
     </motion.div>
   );
 }

@@ -6,6 +6,8 @@ import { TextStreamChatTransport } from "ai";
 import { AnimatePresence, motion } from "motion/react";
 
 import { AiMessageBubble } from "@/components/ai-elements/message-bubble";
+import type { Citation } from "@/lib/chat/structured-response";
+import { splitStreamedText } from "@/lib/chat/stream-metadata";
 import { Button } from "@/components/ui/button";
 
 type UploadPipelineResponse = {
@@ -336,14 +338,19 @@ export function DocumentChatWorkspace() {
 
           <div className="flex flex-col gap-3">
             {messages.map((message) => {
-              const text = messageText(message.parts);
-              if (!text) return null;
+              const rawText = messageText(message.parts);
+              if (!rawText) return null;
+              const isCurrentlyStreaming = isSending && message.id === lastMessageId;
+              const { text, citations } = isCurrentlyStreaming
+                ? { text: rawText, citations: [] as Citation[] }
+                : splitStreamedText(rawText);
               return (
                 <AiMessageBubble
                   key={message.id}
                   role={message.role}
                   text={text}
-                  isStreaming={isSending && message.id === lastMessageId}
+                  isStreaming={isCurrentlyStreaming}
+                  citations={citations}
                 />
               );
             })}
@@ -362,6 +369,7 @@ export function DocumentChatWorkspace() {
           </label>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
             <textarea
+              suppressHydrationWarning
               id="prompt"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}

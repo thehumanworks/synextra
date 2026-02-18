@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse
 
 from synextra_backend.repositories.rag_document_repository import RagDocumentRepository
@@ -16,21 +16,21 @@ def _get_repository(request: Request) -> RagDocumentRepository:
     repo = getattr(request.app.state, "rag_repository", None)
     if repo is None:  # pragma: no cover
         raise RuntimeError("RAG repository not configured")
-    return repo
+    return cast(RagDocumentRepository, repo)
 
 
 def _get_embedded_persistence(request: Request) -> EmbeddedStorePersistence:
     persistence = getattr(request.app.state, "embedded_store_persistence", None)
     if persistence is None:  # pragma: no cover
         raise RuntimeError("Embedded persistence not configured")
-    return persistence
+    return cast(EmbeddedStorePersistence, persistence)
 
 
 def _get_vector_persistence(request: Request) -> OpenAIVectorStorePersistence:
     persistence = getattr(request.app.state, "vector_store_persistence", None)
     if persistence is None:  # pragma: no cover
         raise RuntimeError("Vector store persistence not configured")
-    return persistence
+    return cast(OpenAIVectorStorePersistence, persistence)
 
 
 def build_rag_persistence_router() -> APIRouter:
@@ -49,7 +49,7 @@ def build_rag_persistence_router() -> APIRouter:
         document_id: str,
         repository: Annotated[RagDocumentRepository, Depends(_get_repository)],
         persistence: Annotated[EmbeddedStorePersistence, Depends(_get_embedded_persistence)],
-    ) -> RagPersistenceResponse:
+    ) -> RagPersistenceResponse | JSONResponse:
         document = repository.get_document(document_id)
         if document is None:
             payload = error_response(
@@ -76,13 +76,14 @@ def build_rag_persistence_router() -> APIRouter:
             404: {"model": ApiErrorResponse},
             502: {"model": ApiErrorResponse},
         },
-        summary="Persist a document to an OpenAI vector store",
+        summary="Queue persistence of a document to an OpenAI vector store",
     )
     async def persist_vector_store(
         document_id: str,
+        background_tasks: BackgroundTasks,
         repository: Annotated[RagDocumentRepository, Depends(_get_repository)],
         persistence: Annotated[OpenAIVectorStorePersistence, Depends(_get_vector_persistence)],
-    ) -> RagPersistenceResponse:
+    ) -> RagPersistenceResponse | JSONResponse:
         document = repository.get_document(document_id)
         if document is None:
             payload = error_response(
@@ -92,14 +93,35 @@ def build_rag_persistence_router() -> APIRouter:
             )
             return JSONResponse(status_code=404, content=payload.model_dump())
 
+        inspection = persistence.inspect(document_id=document_id)
+        if inspection.existing is not None:
+            return RagPersistenceResponse(
+                document_id=document_id,
+                store="vector-store",
+                status="ok",
+                vector_store_id=inspection.existing.vector_store_id,
+                file_ids=list(inspection.existing.file_ids),
+                duration_ms=0,
+            )
+
+        if not persistence.try_acquire_inflight(document_id=document_id):
+            return RagPersistenceResponse(
+                document_id=document_id,
+                store="vector-store",
+                status="queued",
+                duration_ms=0,
+            )
+
         try:
-            duration_ms, _signature, vector_store_id, file_ids = persistence.persist(
-                document_id=document_id
+            background_tasks.add_task(
+                persistence.persist_in_background,
+                document_id=document_id,
             )
         except Exception as exc:
+            persistence.release_inflight(document_id=document_id)
             payload = error_response(
-                code="vector_store_persist_failed",
-                message=str(exc) or "Vector store persistence failed",
+                code="vector_store_queue_failed",
+                message=str(exc) or "Vector store persistence could not be queued",
                 recoverable=True,
             )
             return JSONResponse(status_code=502, content=payload.model_dump())
@@ -107,10 +129,57 @@ def build_rag_persistence_router() -> APIRouter:
         return RagPersistenceResponse(
             document_id=document_id,
             store="vector-store",
-            status="ok",
-            vector_store_id=vector_store_id,
-            file_ids=file_ids,
-            duration_ms=duration_ms,
+            status="queued",
+            duration_ms=0,
         )
+
+    @router.get(
+        "/documents/{document_id}/persist/vector-store",
+        response_model=RagPersistenceResponse,
+        status_code=200,
+        responses={
+            404: {"model": ApiErrorResponse},
+        },
+        summary="Get vector-store persistence status for a document",
+    )
+    async def get_vector_store_persistence_status(
+        document_id: str,
+        repository: Annotated[RagDocumentRepository, Depends(_get_repository)],
+        persistence: Annotated[OpenAIVectorStorePersistence, Depends(_get_vector_persistence)],
+    ) -> RagPersistenceResponse | JSONResponse:
+        document = repository.get_document(document_id)
+        if document is None:
+            payload = error_response(
+                code="document_not_found",
+                message="Document not found",
+                recoverable=False,
+            )
+            return JSONResponse(status_code=404, content=payload.model_dump())
+
+        inspection = persistence.inspect(document_id=document_id)
+        if inspection.existing is not None:
+            return RagPersistenceResponse(
+                document_id=document_id,
+                store="vector-store",
+                status="ok",
+                vector_store_id=inspection.existing.vector_store_id,
+                file_ids=list(inspection.existing.file_ids),
+                duration_ms=0,
+            )
+
+        if persistence.is_inflight(document_id=document_id):
+            return RagPersistenceResponse(
+                document_id=document_id,
+                store="vector-store",
+                status="queued",
+                duration_ms=0,
+            )
+
+        payload = error_response(
+            code="vector_store_not_persisted",
+            message="Document is not persisted to vector store yet",
+            recoverable=True,
+        )
+        return JSONResponse(status_code=404, content=payload.model_dump())
 
     return router

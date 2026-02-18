@@ -59,5 +59,6 @@ We adopted a text-streaming architecture:
 
 ## Follow-up Actions
 
-- Add optional streamed metadata channel (citations/tools) if real-time citation rendering becomes a requirement.
+- ~~Add optional streamed metadata channel (citations/tools) if real-time citation rendering becomes a requirement.~~ Done: metadata trailer protocol (`\x1e` + JSON) appended after answer tokens carries citations/mode/tools_used. See `lib/chat/stream-metadata.ts` and `backend/adrs/0004-real-token-streaming.md`.
+- ~~Fake-streaming replaced with real token-by-token streaming.~~ Done: backend now uses `AsyncOpenAI.responses.create(stream=True)` for synthesis. See `backend/adrs/0004-real-token-streaming.md`.
 - Consider upgrading to full AI SDK UI message protocol if tool/result streaming is needed in-chat.
