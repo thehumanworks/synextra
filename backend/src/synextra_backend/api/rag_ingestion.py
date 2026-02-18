@@ -9,6 +9,7 @@ from synextra_backend.repositories.rag_document_repository import ChunkRecord, R
 from synextra_backend.schemas.errors import ApiErrorResponse, error_response
 from synextra_backend.schemas.rag_ingestion import RagIngestionResponse, RagPdfChunk
 from synextra_backend.services.block_chunker import chunk_pdf_blocks
+from synextra_backend.services.document_store import DocumentStore, build_page_texts_from_blocks
 from synextra_backend.services.pdf_ingestion import PdfEncryptedError, PdfIngestionError, extract_pdf_blocks
 
 
@@ -17,6 +18,13 @@ def _get_repository(request: Request) -> RagDocumentRepository:
     if repo is None:  # pragma: no cover
         raise RuntimeError("RAG repository not configured")
     return repo
+
+
+def _get_document_store(request: Request) -> DocumentStore:
+    store = getattr(request.app.state, "document_store", None)
+    if store is None:  # pragma: no cover
+        raise RuntimeError("Document store not configured")
+    return store
 
 
 def _is_pdf(*, filename: str | None, content_type: str | None, data: bytes) -> bool:
@@ -43,6 +51,7 @@ def build_rag_ingestion_router() -> APIRouter:
     async def ingest_pdf(
         file: UploadFile = File(...),
         repository: RagDocumentRepository = Depends(_get_repository),
+        document_store: DocumentStore = Depends(_get_document_store),
     ) -> RagIngestionResponse:
         started = time.perf_counter()
         data = await file.read()
@@ -77,6 +86,15 @@ def build_rag_ingestion_router() -> APIRouter:
 
         existing = repository.get_document_by_checksum(checksum)
         if existing is not None:
+            if not document_store.has_document(existing.document_id):
+                page_texts = build_page_texts_from_blocks(
+                    ingestion.blocks, ingestion.page_count,
+                )
+                document_store.store_pages(
+                    document_id=existing.document_id,
+                    filename=existing.filename,
+                    pages=page_texts,
+                )
             chunks = repository.list_chunks(existing.document_id)
             return RagIngestionResponse(
                 document_id=existing.document_id,
@@ -137,6 +155,13 @@ def build_rag_ingestion_router() -> APIRouter:
             )
 
         repository.replace_chunks(document.document_id, chunk_records)
+
+        page_texts = build_page_texts_from_blocks(ingestion.blocks, ingestion.page_count)
+        document_store.store_pages(
+            document_id=document.document_id,
+            filename=document.filename,
+            pages=page_texts,
+        )
 
         _ = int((time.perf_counter() - started) * 1000)
 

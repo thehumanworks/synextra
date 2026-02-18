@@ -34,6 +34,50 @@
 - Moving to `done` requires:
   - subagent review completed and addressed
   - lint, typecheck, and tests passing
+- Every task that introduces an architectural decision must produce an ADR in `{module}/adrs/` with at least two alternatives considered. No exceptions.
+- Every backend/frontend task must produce a task JSON in the appropriate `tasks/` directory. Missing task JSON is a process violation.
+
+## Subagent Review Protocol (Mandatory)
+
+Reviews are the highest-leverage quality gate. These rules are non-negotiable.
+
+### Adversarial Default Posture
+- Never prompt reviews with "final sanity check," "brief findings only if any," or "confirm this looks good." These phrases bias toward false-clean conclusions.
+- Always frame reviews adversarially: "Assume this code has bugs. Find them or prove they do not exist. A clean finding requires explicit proof, not absence of suspicion."
+
+### Mandatory Category Enumeration
+Every code review must explicitly evaluate each category below and state a conclusion with reasoning. A review that skips any category is incomplete and must be re-run.
+1. **API contract changes** — compare to prior contract, note status code changes, response schema changes, breaking changes for existing clients.
+2. **Race conditions and concurrency** — thread safety, async/sync boundaries, lock ordering.
+3. **State scope** — is shared state process-local, thread-local, or distributed? Is that correct for the deployment model (default assumption: multi-worker, horizontally scaled)?
+4. **Error handling completeness** — enumerate all error branches, verify each has a handler, a test, and an observable outcome (not just a log line).
+5. **Crash/restart recovery** — what in-memory state is lost on process death? What is the user-visible consequence?
+6. **Test coverage fidelity** — do tests exercise the actual failure modes, or do they pass because of test isolation artifacts (single-process, mocked state)?
+
+### No Evidence, No Clean Bill
+- A conclusion of "no issues found" is only valid when accompanied by explicit reasoning per category.
+- Acceptable form: "Category X: traced [function] -> [function] -> [terminal state], no issue because [reason]."
+- Bare "no issues" or "looks good" must be rejected by the orchestrating session and the review re-run with explicit enumeration.
+
+### Diff-Aware Reviews
+- Before reviewing any file, run `git diff` against the base to understand what changed. Code that looks correct in isolation may be a regression relative to the prior contract.
+- Every review must state which lines changed and evaluate the contract impact of those specific changes.
+
+### Finding-to-Fix Verification
+- When a review surfaces a finding and the implementation session claims to have addressed it, the fix must be re-reviewed with a targeted prompt: "Review the fix for [finding]. Confirm the root cause is addressed, not just the symptom."
+- A fix that moves an in-memory set to a TTL-decorated in-memory set does not fix a cross-worker race. Verification reviews must catch this class of incomplete fix.
+
+### Async/Background Operation Lifecycle Tracing
+For any async or background operation, the review must trace the full lifecycle:
+1. What triggers the operation.
+2. What happens on success (where is the result stored, how does the caller learn of it).
+3. What happens on failure (is the error stored, is the guard released, can it be retried, is a `status=error` state observable).
+4. What happens if the process dies mid-operation (what state is lost, what is the recovery path).
+
+## Self-Learning and Continuous Improvement
+- After completing a task that exposes a new failure mode, coding pattern, or architectural insight, update the relevant AGENTS.md section before handoff. AGENTS.md is operating memory for future sessions — stale memory causes repeated mistakes.
+- When a subagent review catches a real defect, record the class of defect as a durable check item so future reviews can look for it explicitly.
+- When a fix is applied for a review finding, add a regression test that encodes the exact failure mode. The test is the durable proof; the AGENTS.md note is the searchable index.
 
 ## Durable Guidance
 - Keep AGENTS files as high-signal operating memory only.
@@ -46,7 +90,7 @@
 - Do not claim a bug is fixed from proxy metrics alone; confirm the exact symptom is gone through end-to-end reproduction (integration test or manual UI check).
 - When users report "still seeing the same issue," re-run the live repro immediately and reassess root cause before layering more patches.
 - For cross-stack edits, run repo-standard validation (`buck2 run //:lint`, `buck2 run //:typecheck`, `buck2 run //:test` or `buck2 run //:check`) unless the user explicitly scopes checks down; report skipped checks.
-- Before handoff, run a self-review on the diff to catch residual regressions, edge cases, and mismatches with the user's stated intent.
+- Before handoff, run a self-review on the diff to catch residual regressions, edge cases, and mismatches with the user's stated intent. The self-review must follow the Subagent Review Protocol above — adversarial framing, mandatory category enumeration, and explicit reasoning per category.
 - `buck2 run //:messages` (`mmr`/DuckDB-backed) is not safe to run in parallel; fetch multiple session IDs sequentially to avoid lock conflicts on `~/Library/Caches/mmr/mmr.duckdb`.
 - RAG chat fallback rendering: if structured-response parsing fails, frontend renders raw assistant text with preserved newlines (`whitespace-pre-wrap`), so token-per-line backend output appears as a vertical word list.
 - Citation dedupe keyed only by `document_id` + `chunk_id` does not collapse overlap-heavy chunking output; dedupe by normalized span/text if repeated citation cards become noisy.

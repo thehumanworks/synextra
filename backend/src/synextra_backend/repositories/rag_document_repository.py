@@ -35,15 +35,6 @@ class EmbeddedPersistenceRecord:
     persisted_at: datetime
 
 
-@dataclass(frozen=True)
-class VectorStorePersistenceRecord:
-    document_id: str
-    vector_store_id: str
-    file_ids: list[str]
-    signature: str
-    persisted_at: datetime
-
-
 class RagDocumentRepository:
     """Repository interface for RAG documents and chunks."""
 
@@ -80,25 +71,6 @@ class RagDocumentRepository:
     ) -> EmbeddedPersistenceRecord | None:  # pragma: no cover
         raise NotImplementedError
 
-    def mark_vector_store_persisted(
-        self,
-        *,
-        document_id: str,
-        vector_store_id: str,
-        file_ids: list[str],
-        signature: str,
-    ) -> VectorStorePersistenceRecord:  # pragma: no cover
-        raise NotImplementedError
-
-    def get_vector_store_persistence(
-        self, document_id: str
-    ) -> VectorStorePersistenceRecord | None:  # pragma: no cover
-        raise NotImplementedError
-
-    def list_vector_store_ids(self) -> list[str]:  # pragma: no cover
-        raise NotImplementedError
-
-
 class InMemoryRagDocumentRepository(RagDocumentRepository):
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -106,7 +78,6 @@ class InMemoryRagDocumentRepository(RagDocumentRepository):
         self._documents_by_checksum: dict[str, str] = {}
         self._chunks_by_document: dict[str, list[ChunkRecord]] = {}
         self._embedded_persistence: dict[str, EmbeddedPersistenceRecord] = {}
-        self._vector_persistence: dict[str, VectorStorePersistenceRecord] = {}
 
     def get_document(self, document_id: str) -> DocumentRecord | None:
         with self._lock:
@@ -168,35 +139,3 @@ class InMemoryRagDocumentRepository(RagDocumentRepository):
     ) -> EmbeddedPersistenceRecord | None:
         with self._lock:
             return self._embedded_persistence.get(document_id)
-
-    def mark_vector_store_persisted(
-        self,
-        *,
-        document_id: str,
-        vector_store_id: str,
-        file_ids: list[str],
-        signature: str,
-    ) -> VectorStorePersistenceRecord:
-        with self._lock:
-            record = VectorStorePersistenceRecord(
-                document_id=document_id,
-                vector_store_id=vector_store_id,
-                file_ids=list(file_ids),
-                signature=signature,
-                persisted_at=datetime.now(timezone.utc),
-            )
-            self._vector_persistence[document_id] = record
-            return record
-
-    def get_vector_store_persistence(
-        self, document_id: str
-    ) -> VectorStorePersistenceRecord | None:
-        with self._lock:
-            return self._vector_persistence.get(document_id)
-
-    def list_vector_store_ids(self) -> list[str]:
-        with self._lock:
-            ids = []
-            for record in self._vector_persistence.values():
-                ids.append(record.vector_store_id)
-            return sorted(set(ids))

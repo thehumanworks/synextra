@@ -9,6 +9,7 @@ from synextra_backend.repositories.rag_document_repository import InMemoryRagDoc
 from synextra_backend.retrieval.bm25_search import Bm25IndexStore
 from synextra_backend.retrieval.types import EvidenceChunk
 from synextra_backend.schemas.rag_chat import RagChatRequest
+from synextra_backend.services.document_store import DocumentStore, PageText
 from synextra_backend.services.rag_agent_orchestrator import (
     AgentCallResult,
     RagAgentOrchestrator,
@@ -42,11 +43,25 @@ def _chunk(
     )
 
 
-def _orchestrator() -> RagAgentOrchestrator:
+def _document_store() -> DocumentStore:
+    store = DocumentStore()
+    store.store_pages(
+        document_id="doc",
+        filename="paper.pdf",
+        pages=[
+            PageText(page_number=0, lines=["Line one.", "Line two."], line_count=2),
+            PageText(page_number=1, lines=["Page two line one."], line_count=1),
+        ],
+    )
+    return store
+
+
+def _orchestrator(document_store: DocumentStore | None = None) -> RagAgentOrchestrator:
     return RagAgentOrchestrator(
         repository=InMemoryRagDocumentRepository(),
         bm25_store=Bm25IndexStore(),
         session_memory=SessionMemory(),
+        document_store=document_store or _document_store(),
     )
 
 
@@ -161,7 +176,6 @@ async def test_run_retrieval_prefers_agent_tool_calls_when_available(
     class _FakeOpenAI:
         def __init__(self, *, api_key: str) -> None:
             assert api_key == "test-key"
-            pass
 
     monkeypatch.setattr(
         "synextra_backend.services.rag_agent_orchestrator.OpenAI",
@@ -176,30 +190,25 @@ async def test_run_retrieval_prefers_agent_tool_calls_when_available(
             evidence=[
                 _chunk(
                     chunk_id="c-agent",
-                    text="Retrieved via tool call.",
-                    source_tool="openai_vector_store_search",
+                    text="Retrieved via read_document tool call.",
+                    source_tool="read_document",
                 )
             ],
-            tools_used=["bm25_search", "vector_search"],
+            tools_used=["bm25_search", "read_document"],
         )
 
-    async def _manual_should_not_run(**_kwargs: Any) -> tuple[list[EvidenceChunk], list[str]]:
-        raise AssertionError("manual retrieval should not be used when agent path succeeds")
-
     monkeypatch.setattr(orchestrator, "_call_agent", _fake_call_agent)
-    monkeypatch.setattr(orchestrator, "_run_manual_retrieval", _manual_should_not_run)
 
     result = await orchestrator._run_retrieval(
         prompt="What is the model?",
-        mode="hybrid",
         reasoning_effort="high",
     )
 
     assert result.answer == "Agent-grounded answer"
     assert result.evidence
     assert result.citations
-    assert result.citations[0].source_tool == "openai_vector_store_search"
-    assert "vector_search" in result.tools_used
+    assert result.citations[0].source_tool == "read_document"
+    assert "read_document" in result.tools_used
 
 
 @pytest.mark.asyncio
@@ -362,3 +371,43 @@ async def test_stream_synthesis_falls_back_on_error(
     full_text = "".join(tokens)
     assert "Transformer" in full_text
     assert "attention" in full_text
+
+
+def test_agent_instructions_include_document_info() -> None:
+    orchestrator = _orchestrator()
+    instructions = orchestrator._agent_instructions()
+
+    assert "paper.pdf" in instructions
+    assert "read_document" in instructions
+    assert "bm25_search" in instructions
+
+
+def test_dispatch_read_document_returns_evidence_chunk() -> None:
+    orchestrator = _orchestrator()
+    import json
+
+    result = orchestrator._dispatch_tool_call(
+        tool_name="read_document",
+        args=json.dumps({"page": 0}),
+    )
+
+    assert isinstance(result, list)
+    assert len(result) == 1
+    assert isinstance(result[0], EvidenceChunk)
+    assert result[0].page_number == 0
+    assert result[0].source_tool == "read_document"
+    assert "Line one" in result[0].text
+
+
+def test_dispatch_read_document_with_line_range() -> None:
+    orchestrator = _orchestrator()
+    import json
+
+    result = orchestrator._dispatch_tool_call(
+        tool_name="read_document",
+        args=json.dumps({"page": 0, "start_line": 1, "end_line": 1}),
+    )
+
+    assert len(result) == 1
+    assert "Line one" in result[0].text
+    assert "Line two" not in result[0].text

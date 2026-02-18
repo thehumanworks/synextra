@@ -9,6 +9,7 @@ import { AiMessageBubble } from "@/components/ai-elements/message-bubble";
 import type { Citation } from "@/lib/chat/structured-response";
 import { splitStreamedText } from "@/lib/chat/stream-metadata";
 import { Button } from "@/components/ui/button";
+import { AnimatedInput } from "@/components/ui/animated-input";
 
 type UploadPipelineResponse = {
   document_id: string;
@@ -16,7 +17,7 @@ type UploadPipelineResponse = {
   page_count: number;
   chunk_count: number;
   ready_for_chat: boolean;
-  effective_mode: "embedded" | "vector" | "hybrid";
+  effective_mode: "embedded";
   warning?: string;
 };
 
@@ -36,11 +37,7 @@ function parseUploadPipelineResponse(raw: unknown): UploadPipelineResponse | nul
   if (typeof record.page_count !== "number") return null;
   if (typeof record.chunk_count !== "number") return null;
   if (typeof record.ready_for_chat !== "boolean") return null;
-  if (
-    record.effective_mode !== "embedded" &&
-    record.effective_mode !== "vector" &&
-    record.effective_mode !== "hybrid"
-  ) {
+  if (record.effective_mode !== "embedded") {
     return null;
   }
 
@@ -50,7 +47,7 @@ function parseUploadPipelineResponse(raw: unknown): UploadPipelineResponse | nul
     page_count: record.page_count,
     chunk_count: record.chunk_count,
     ready_for_chat: record.ready_for_chat,
-    effective_mode: record.effective_mode,
+    effective_mode: record.effective_mode as "embedded",
     warning: typeof record.warning === "string" ? record.warning : undefined,
   };
 }
@@ -361,48 +358,42 @@ export function DocumentChatWorkspace() {
           layout
           className="absolute bottom-0 left-0 right-0 rounded-b-3xl bg-black/96 px-5 pb-5 pt-4 md:px-6"
         >
-          <label
-            htmlFor="prompt"
-            className="text-[0.68rem] uppercase tracking-[0.16em] text-stone-400"
-          >
-            Your message
-          </label>
-          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <textarea
-              suppressHydrationWarning
+          <div className="flex flex-col gap-3">
+            <AnimatedInput
               id="prompt"
               value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                  event.preventDefault();
-                  void send();
-                }
-              }}
-              placeholder={
-                isReadyForChat ? "Ask a question and press Ctrl+Enter…" : "Process a PDF to enable chat…"
-              }
+              onChange={setPrompt}
+              onSubmit={() => void send()}
               disabled={chatDisabled}
-              rows={3}
-              className="w-full resize-none rounded-2xl bg-zinc-950 px-4 py-3 text-sm leading-relaxed text-stone-100 placeholder:text-stone-500 focus:outline-none"
+              placeholders={
+                isReadyForChat
+                  ? [
+                      "What does this document cover?",
+                      "Summarize the key findings…",
+                      "Find references to…",
+                      "Explain the methodology…",
+                    ]
+                  : ["Process a PDF to enable chat…"]
+              }
+              aria-label="Your message"
             />
-            <div className="flex gap-2 sm:flex-col">
-              <Button
-                type="button"
-                onClick={() => void send()}
-                disabled={chatDisabled || !prompt.trim()}
-                className="h-11 rounded-2xl px-5"
-              >
-                {isSending ? "Streaming…" : "Send"}
-              </Button>
+            <div className="flex gap-2 justify-end">
               <Button
                 type="button"
                 variant="destructive"
                 onClick={() => setMessages([])}
                 disabled={isSending || messages.length === 0}
-                className="h-11 rounded-2xl px-5"
+                className="h-9 rounded-2xl px-4"
               >
                 Clear
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void send()}
+                disabled={chatDisabled || !prompt.trim()}
+                className="h-9 rounded-2xl px-4"
+              >
+                {isSending ? "Streaming…" : "Send"}
               </Button>
             </div>
           </div>

@@ -208,7 +208,7 @@ async def test_stream_forces_hybrid_retrieval_mode() -> None:
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         await client.post(
             "/v1/rag/sessions/s1/messages/stream",
-            json={"prompt": "hello", "retrieval_mode": "vector"},
+            json={"prompt": "hello", "retrieval_mode": "embedded"},
         )
 
     assert len(orchestrator.collect_evidence_calls) == 1

@@ -1,5 +1,3 @@
-type UploadMode = "hybrid";
-
 type BackendFailure = {
   code: string;
   message: string;
@@ -30,22 +28,6 @@ async function readBackendBody(res: Response): Promise<unknown> {
     return res.json();
   }
   return res.text();
-}
-
-function parseBackendFailure(raw: unknown): BackendFailure | null {
-  if (!raw || typeof raw !== "object") return null;
-  const error = (raw as Record<string, unknown>).error;
-  if (!error || typeof error !== "object") return null;
-
-  const code = (error as Record<string, unknown>).code;
-  const message = (error as Record<string, unknown>).message;
-  const recoverable = (error as Record<string, unknown>).recoverable;
-
-  return {
-    code: typeof code === "string" ? code : "upstream_error",
-    message: typeof message === "string" ? message : "Upstream request failed",
-    recoverable: Boolean(recoverable),
-  };
 }
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
@@ -82,9 +64,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const requestedMode: UploadMode = "hybrid";
   const backend = backendBaseUrl();
 
+  // Step 1: Ingest PDF (extract + chunk + store page texts).
   const uploadForm = new FormData();
   uploadForm.append("file", file, file.name || "upload.pdf");
 
@@ -126,6 +108,7 @@ export async function POST(req: Request) {
     );
   }
 
+  // Step 2: Persist to BM25 embedded store.
   const embeddedRes = await fetch(
     `${backend}/v1/rag/documents/${encodeURIComponent(documentId)}/persist/embedded`,
     {
@@ -144,7 +127,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const baseResponse = {
+  return toJsonResponse({
     document_id: documentId,
     filename:
       ingestRecord && typeof ingestRecord.filename === "string"
@@ -158,7 +141,7 @@ export async function POST(req: Request) {
       ingestRecord && typeof ingestRecord.chunk_count === "number"
         ? ingestRecord.chunk_count
         : 0,
-    requested_mode: requestedMode,
+    effective_mode: "embedded",
     ready_for_chat: true,
     stages: {
       ingestion: { status: "ok" as const },
@@ -172,62 +155,6 @@ export async function POST(req: Request) {
             ? (embeddedBody as Record<string, unknown>).indexed_chunk_count
             : undefined,
       },
-    },
-  };
-
-  const vectorRes = await fetch(
-    `${backend}/v1/rag/documents/${encodeURIComponent(documentId)}/persist/vector-store`,
-    {
-      method: "POST",
-    },
-  );
-  const vectorBody = await readBackendBody(vectorRes);
-
-  if (vectorRes.ok) {
-    const record = vectorBody as Record<string, unknown>;
-    return toJsonResponse({
-      ...baseResponse,
-      effective_mode: "hybrid",
-      stages: {
-        ...baseResponse.stages,
-        vector: {
-          status: "ok" as const,
-          vector_store_id:
-            typeof record.vector_store_id === "string"
-              ? record.vector_store_id
-              : undefined,
-          file_ids: Array.isArray(record.file_ids)
-            ? record.file_ids.filter((id) => typeof id === "string")
-            : undefined,
-        },
-      },
-    });
-  }
-
-  const failure = parseBackendFailure(vectorBody);
-  if (failure?.recoverable) {
-    return toJsonResponse({
-      ...baseResponse,
-      effective_mode: "hybrid",
-      warning:
-        "Vector persistence failed. Continuing in hybrid mode with BM25 fallback.",
-      stages: {
-        ...baseResponse.stages,
-        vector: {
-          status: "failed" as const,
-          recoverable: true,
-          code: failure.code,
-          message: failure.message,
-        },
-      },
-    });
-  }
-
-  return new Response(serializeBody(vectorBody), {
-    status: vectorRes.status,
-    headers: {
-      "content-type":
-        vectorRes.headers.get("content-type") ?? "application/json",
     },
   });
 }

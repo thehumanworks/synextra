@@ -7,23 +7,20 @@ from collections.abc import AsyncIterator
 from dataclasses import asdict, dataclass
 from typing import Any
 
-import anyio
 from openai import AsyncOpenAI, OpenAI, pydantic_function_tool
 from pydantic import BaseModel
 
 from synextra_backend.repositories.rag_document_repository import RagDocumentRepository
 from synextra_backend.retrieval.bm25_search import Bm25IndexStore
-from synextra_backend.retrieval.evidence_merger import reciprocal_rank_fusion
-from synextra_backend.retrieval.openai_file_search import OpenAIFileSearch
 from synextra_backend.retrieval.types import EvidenceChunk
 from synextra_backend.schemas.rag_chat import (
     RagChatRequest,
     RagChatResponse,
     RagCitation,
     ReasoningEffort,
-    RetrievalMode,
 )
 from synextra_backend.services.citation_validator import CitationValidator
+from synextra_backend.services.document_store import DocumentStore
 from synextra_backend.services.session_memory import SessionMemory
 
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
@@ -34,9 +31,12 @@ class Bm25RetrievalTool(BaseModel):
     top_k: int = 8
 
 
-class VectorRetrievalTool(BaseModel):
-    query: str
-    top_k: int = 8
+class ReadDocumentTool(BaseModel):
+    """Read text from a document page. Omit start_line and end_line to read the full page."""
+
+    page: int
+    start_line: int | None = None
+    end_line: int | None = None
 
 
 def _normalize_inline_whitespace(text: str) -> str:
@@ -109,11 +109,13 @@ class RagAgentOrchestrator:
         repository: RagDocumentRepository,
         bm25_store: Bm25IndexStore,
         session_memory: SessionMemory,
+        document_store: DocumentStore,
         citation_validator: CitationValidator | None = None,
     ) -> None:
         self._repository = repository
         self._bm25_store = bm25_store
         self._session_memory = session_memory
+        self._document_store = document_store
         self._citation_validator = citation_validator or CitationValidator()
         self._openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         self._async_openai_client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
@@ -123,7 +125,6 @@ class RagAgentOrchestrator:
         mode = request.retrieval_mode
         reasoning_effort = request.reasoning_effort
 
-        # Record user turn.
         self._session_memory.append_turn(
             session_id=session_id,
             role="user",
@@ -133,11 +134,9 @@ class RagAgentOrchestrator:
 
         result = await self._run_retrieval(
             prompt=prompt,
-            mode=mode,
             reasoning_effort=reasoning_effort,
         )
 
-        # Record assistant turn.
         self._session_memory.append_turn(
             session_id=session_id,
             role="assistant",
@@ -159,30 +158,79 @@ class RagAgentOrchestrator:
     def run_bm25(self, *, prompt: str, top_k: int = 8) -> list[EvidenceChunk]:
         return self._bm25_store.search(query=prompt, top_k=top_k)
 
-    def run_vector(self, *, prompt: str, top_k: int = 8) -> list[EvidenceChunk]:
-        vector_store_ids = self._repository.list_vector_store_ids()
-        if not vector_store_ids:
-            return []
-        file_search = OpenAIFileSearch()
-        return file_search.search(vector_store_ids=vector_store_ids, query=prompt, top_k=top_k)
+    def run_read_document(
+        self,
+        *,
+        document_id: str,
+        page: int,
+        start_line: int | None = None,
+        end_line: int | None = None,
+    ) -> list[EvidenceChunk]:
+        text = self._document_store.read_page(
+            document_id,
+            page,
+            start_line=start_line,
+            end_line=end_line,
+        )
+        if text is None:
+            raise ValueError(
+                f"Document {document_id!r} page {page} not found. "
+                f"Available documents: {[d.document_id for d in self._document_store.list_documents()]}"
+            )
+
+        chunk_id = f"{document_id}:page:{page}"
+        if start_line is not None or end_line is not None:
+            chunk_id += f":lines:{start_line or 1}-{end_line or 'end'}"
+
+        return [
+            EvidenceChunk(
+                document_id=document_id,
+                chunk_id=chunk_id,
+                page_number=page,
+                text=text,
+                score=1.0,
+                source_tool="read_document",
+            )
+        ]
 
     def _dispatch_tool_call(self, *, tool_name: str, args: str) -> Any:
         parsed = json.loads(args) if args else {}
-        query = str(parsed.get("query", "")).strip()
-        top_k_raw = parsed.get("top_k", 8)
-        top_k = int(top_k_raw) if isinstance(top_k_raw, int | str) else 8
-        top_k = max(1, top_k)
 
-        if not query:
-            raise ValueError("Tool call is missing query")
+        if tool_name == "bm25_search":
+            query = str(parsed.get("query", "")).strip()
+            if not query:
+                raise ValueError("Tool call is missing query")
+            top_k_raw = parsed.get("top_k", 8)
+            top_k = int(top_k_raw) if isinstance(top_k_raw, int | str) else 8
+            top_k = max(1, top_k)
+            return self.run_bm25(prompt=query, top_k=top_k)
 
-        match tool_name:
-            case "bm25_search":
-                return self.run_bm25(prompt=query, top_k=top_k)
-            case "vector_search":
-                return self.run_vector(prompt=query, top_k=top_k)
-            case _:
-                raise ValueError(f"Unknown tool name: {tool_name}")
+        if tool_name == "read_document":
+            page = parsed.get("page")
+            if page is None:
+                raise ValueError("read_document requires a page number")
+            page = int(page)
+            start_line = parsed.get("start_line")
+            end_line = parsed.get("end_line")
+            if start_line is not None:
+                start_line = int(start_line)
+            if end_line is not None:
+                end_line = int(end_line)
+
+            # Resolve the document_id: use the first (and usually only) document.
+            docs = self._document_store.list_documents()
+            if not docs:
+                raise ValueError("No documents have been ingested yet")
+            document_id = docs[0].document_id
+
+            return self.run_read_document(
+                document_id=document_id,
+                page=page,
+                start_line=start_line,
+                end_line=end_line,
+            )
+
+        raise ValueError(f"Unknown tool name: {tool_name}")
 
     @staticmethod
     def _serialize_tool_output(result: Any) -> str:
@@ -201,34 +249,47 @@ class RagAgentOrchestrator:
         if value and value not in target:
             target.append(value)
 
-    def _tools_for_mode(self, mode: RetrievalMode) -> list[Any]:
-        if mode == "embedded":
-            return [pydantic_function_tool(Bm25RetrievalTool, name="bm25_search")]
-        if mode == "vector":
-            return [pydantic_function_tool(VectorRetrievalTool, name="vector_search")]
+    def _tools(self) -> list[Any]:
         return [
             pydantic_function_tool(Bm25RetrievalTool, name="bm25_search"),
-            pydantic_function_tool(VectorRetrievalTool, name="vector_search"),
+            pydantic_function_tool(ReadDocumentTool, name="read_document"),
         ]
 
-    def _agent_instructions_for_mode(self, mode: RetrievalMode) -> str:
-        base = (
-            "You are a retrieval-augmented assistant. "
-            "Always call the provided retrieval tool(s) before you answer. "
-            "Use top_k=8 unless the user asks for a different scope. "
-            "Answer only using retrieved evidence and be concise."
+    def _agent_instructions(self) -> str:
+        docs = self._document_store.list_documents()
+        if docs:
+            doc_lines: list[str] = []
+            for doc in docs:
+                last_page = doc.page_count - 1
+                doc_lines.append(
+                    f"  - \"{doc.filename}\" (pages 0–{last_page}, {doc.page_count} total)"
+                )
+            doc_section = "Available documents:\n" + "\n".join(doc_lines)
+        else:
+            doc_section = "No documents have been ingested yet."
+
+        return (
+            "You are a document Q&A assistant. "
+            "Answer questions using only the provided documents.\n\n"
+            f"{doc_section}\n\n"
+            "Tools:\n"
+            "- bm25_search(query, top_k): keyword search across document chunks. "
+            "Returns matching excerpts with page numbers and relevance scores.\n"
+            "- read_document(page, start_line?, end_line?): read a specific page or "
+            "line range. Pages are 0-indexed. Lines are 1-based. Omit start_line/end_line "
+            "to read the full page.\n\n"
+            "Strategy:\n"
+            "1. Use bm25_search to locate relevant pages.\n"
+            "2. Use read_document to read promising pages in full.\n"
+            "3. Use read_document with start_line/end_line to focus on specific sections.\n"
+            "4. Answer only using evidence from the document. "
+            "Cite page numbers and line numbers. Be concise."
         )
-        if mode == "hybrid":
-            return base + " In hybrid mode, call bm25_search and vector_search once each."
-        if mode == "vector":
-            return base + " In vector mode, use vector_search."
-        return base + " In embedded mode, use bm25_search."
 
     async def _run_retrieval(
         self,
         *,
         prompt: str,
-        mode: RetrievalMode,
         reasoning_effort: ReasoningEffort,
     ) -> OrchestratorResult:
         tools_used: list[str] = []
@@ -239,10 +300,10 @@ class RagAgentOrchestrator:
             agent_result = self._call_agent(
                 client=self._openai_client,
                 model=model,
-                instructions=self._agent_instructions_for_mode(mode),
+                instructions=self._agent_instructions(),
                 input=f"Question: {prompt}",
                 reasoning_effort=reasoning_effort,
-                tools=self._tools_for_mode(mode),
+                tools=self._tools(),
             )
             tools_used.extend(agent_result.tools_used)
         except Exception:
@@ -263,9 +324,9 @@ class RagAgentOrchestrator:
                 evidence=evidence,
             )
 
-        evidence, fallback_tools = await self._run_manual_retrieval(prompt=prompt, mode=mode)
-        for tool in fallback_tools:
-            self._append_unique(tools_used, tool)
+        # Fallback: direct BM25 search.
+        evidence = self.run_bm25(prompt=prompt, top_k=8)
+        self._append_unique(tools_used, "bm25_search_fallback")
 
         citations = self._build_citations(evidence)
         validation = self._citation_validator.validate(citations)
@@ -284,52 +345,6 @@ class RagAgentOrchestrator:
             citations=citations,
             evidence=evidence,
         )
-
-    async def _run_manual_retrieval(
-        self,
-        *,
-        prompt: str,
-        mode: RetrievalMode,
-    ) -> tuple[list[EvidenceChunk], list[str]]:
-        tools_used: list[str] = []
-        bm25_evidence: list[EvidenceChunk] = []
-        vector_evidence: list[EvidenceChunk] = []
-
-        if mode == "embedded":
-            tools_used.append("bm25_search")
-            return self.run_bm25(prompt=prompt, top_k=8), tools_used
-
-        if mode == "vector":
-            tools_used.append("openai_vector_store_search")
-            try:
-                return self.run_vector(prompt=prompt, top_k=8), tools_used
-            except Exception:
-                tools_used.append("bm25_search_fallback")
-                return self.run_bm25(prompt=prompt, top_k=8), tools_used
-
-        tools_used.extend(["bm25_search", "openai_vector_store_search"])
-        try:
-            async with anyio.create_task_group() as tg:
-                bm25_holder: dict[str, list[EvidenceChunk]] = {}
-                vector_holder: dict[str, list[EvidenceChunk]] = {}
-
-                async def run_b() -> None:
-                    bm25_holder["value"] = self.run_bm25(prompt=prompt, top_k=8)
-
-                async def run_v() -> None:
-                    vector_holder["value"] = self.run_vector(prompt=prompt, top_k=8)
-
-                tg.start_soon(run_b)
-                tg.start_soon(run_v)
-
-            bm25_evidence = bm25_holder.get("value", [])
-            vector_evidence = vector_holder.get("value", [])
-        except Exception:
-            bm25_evidence = self.run_bm25(prompt=prompt, top_k=8)
-            vector_evidence = []
-            tools_used.append("openai_vector_store_search_failed")
-
-        return reciprocal_rank_fusion([bm25_evidence, vector_evidence], top_k=8), tools_used
 
     def _build_citations(self, evidence: list[EvidenceChunk]) -> list[RagCitation]:
         citations: list[RagCitation] = []
@@ -447,12 +462,12 @@ class RagAgentOrchestrator:
         context_lines: list[str] = []
         for idx, citation in enumerate(citations, start=1):
             context_lines.append(
-                f"[{idx}] doc={citation.document_id} page={citation.page_number}"
+                f"[{idx}] doc={citation.document_id} page={citation.page_number} "
                 f"chunk={citation.chunk_id}: {citation.supporting_quote}"
             )
 
         system = (
-            "You are a retrieval-augmented assistant."
+            "You are a document Q&A assistant. "
             "Answer the user's question using only the provided evidence. "
             "If the evidence is insufficient, say you don't know. Keep the answer concise."
         )
@@ -499,10 +514,10 @@ class RagAgentOrchestrator:
             agent_result = self._call_agent(
                 client=self._openai_client,
                 model=model,
-                instructions=self._agent_instructions_for_mode(mode),
+                instructions=self._agent_instructions(),
                 input=f"Question: {prompt}",
                 reasoning_effort=reasoning_effort,
-                tools=self._tools_for_mode(mode),
+                tools=self._tools(),
             )
             tools_used.extend(agent_result.tools_used)
         except Exception:
@@ -511,11 +526,8 @@ class RagAgentOrchestrator:
         if agent_result is not None and agent_result.evidence:
             evidence = agent_result.evidence
         else:
-            evidence, fallback_tools = await self._run_manual_retrieval(
-                prompt=prompt, mode=mode,
-            )
-            for tool in fallback_tools:
-                self._append_unique(tools_used, tool)
+            evidence = self.run_bm25(prompt=prompt, top_k=8)
+            self._append_unique(tools_used, "bm25_search_fallback")
 
         citations = self._build_citations(evidence)
         validation = self._citation_validator.validate(citations)
@@ -538,12 +550,12 @@ class RagAgentOrchestrator:
         context_lines: list[str] = []
         for idx, citation in enumerate(citations, start=1):
             context_lines.append(
-                f"[{idx}] doc={citation.document_id} page={citation.page_number}"
+                f"[{idx}] doc={citation.document_id} page={citation.page_number} "
                 f"chunk={citation.chunk_id}: {citation.supporting_quote}"
             )
 
         system = (
-            "You are a retrieval-augmented assistant."
+            "You are a document Q&A assistant. "
             "Answer the user's question using only the provided evidence. "
             "If the evidence is insufficient, say you don't know. Keep the answer concise."
         )

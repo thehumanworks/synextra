@@ -11,8 +11,8 @@ from synextra_backend.api import (
     build_rag_persistence_router,
 )
 from synextra_backend.retrieval.bm25_search import Bm25IndexStore
+from synextra_backend.services.document_store import DocumentStore
 from synextra_backend.services.embedded_store_persistence import EmbeddedStorePersistence
-from synextra_backend.services.openai_vector_store_persistence import OpenAIVectorStorePersistence
 from synextra_backend.services.rag_agent_orchestrator import RagAgentOrchestrator
 from synextra_backend.services.rag_document_repository import (
     InMemoryRagDocumentRepository,
@@ -43,19 +43,21 @@ def create_app(
     repository = rag_repository or InMemoryRagDocumentRepository()
     bm25_store = Bm25IndexStore()
     session_memory = SessionMemory()
+    document_store = DocumentStore()
 
     app.state.rag_repository = repository
     app.state.bm25_store = bm25_store
     app.state.session_memory = session_memory
+    app.state.document_store = document_store
     app.state.embedded_store_persistence = EmbeddedStorePersistence(
         repository=repository,
         index_store=bm25_store,
     )
-    app.state.vector_store_persistence = OpenAIVectorStorePersistence(repository=repository)
     app.state.rag_orchestrator = RagAgentOrchestrator(
         repository=repository,
         bm25_store=bm25_store,
         session_memory=session_memory,
+        document_store=document_store,
     )
 
     app.include_router(build_health_router(service_name=normalized_service_name))

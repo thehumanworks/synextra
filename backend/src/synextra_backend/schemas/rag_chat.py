@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-RetrievalMode = Literal["embedded", "vector", "hybrid"]
+RetrievalMode = Literal["embedded", "hybrid"]
 ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh"]
 
 

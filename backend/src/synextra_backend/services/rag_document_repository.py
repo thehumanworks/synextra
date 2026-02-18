@@ -13,7 +13,6 @@ from synextra_backend.repositories.rag_document_repository import (
     EmbeddedPersistenceRecord,
     InMemoryRagDocumentRepository,
     RagDocumentRepository,
-    VectorStorePersistenceRecord,
 )
 
 __all__ = [
@@ -22,5 +21,4 @@ __all__ = [
     "EmbeddedPersistenceRecord",
     "InMemoryRagDocumentRepository",
     "RagDocumentRepository",
-    "VectorStorePersistenceRecord",
 ]

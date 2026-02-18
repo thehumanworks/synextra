@@ -34,6 +34,16 @@
 - Do not mark UI issues resolved from backend metrics alone; confirm in a real UI flow (component/integration/Playwright/manual repro).
 - Before handoff, run frontend lint, typecheck, and tests (or explicitly report which checks were intentionally skipped).
 
+## Backend Contract Verification
+
+- When backend changes API response status codes (e.g., 200 -> 202) or response schemas, frontend code that consumes those endpoints must be audited in the same task. The frontend review must verify: (a) status code handling covers the new code, (b) response parsing handles new/changed fields, (c) polling/retry logic exists for async-style 202 responses.
+- For async backend endpoints (status=queued → poll for completion), the frontend must implement a polling strategy with backoff and a terminal timeout. Never assume a single request will return the final state.
+
+## Review Quality Standards
+
+- Follow the Subagent Review Protocol defined in root `AGENTS.md`. All reviews must be adversarially framed, must enumerate mandatory categories with explicit reasoning, and must not return bare "no issues" without per-category evidence.
+- For frontend-specific reviews, additionally verify: (a) component renders correctly with loading/error/empty states, (b) TypeScript types match the actual backend payload shape (not just the local type definition), (c) accessibility attributes are preserved.
+
 ## Buck2 Validation Discipline
 
 - If frontend dependency manifests or lockfiles change (`frontend/package.json` or lockfiles), run `buck2 run //:frontend-install` (or `buck2 run //:install`) before lint/test/typecheck/build.

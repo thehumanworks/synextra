@@ -34,6 +34,24 @@
 - Because OpenAI is required at module import time, tests that import orchestration/search modules must set `OPENAI_API_KEY` and patch module-level OpenAI clients.
 - Before handoff, run backend lint, typecheck, and tests (or explicitly call out why any check was skipped).
 
+## Service Interface Design
+
+- For any new service consumed by FastAPI routers via dependency injection, define a `Protocol` (or ABC) before writing the concrete implementation. Routers depend on the protocol, not the concrete class. This enables test fakes that are contract-enforced and prevents silent divergence between fakes and implementations.
+- Test fakes/stubs must implement the same Protocol as the real service. If the real service interface changes and the fake does not, the fake must fail to typecheck.
+
+## Background Task and Async Operation Standards
+
+- **Observable failure states are mandatory.** Any `BackgroundTasks` flow that writes to a polled status must distinguish at minimum `queued`, `running`, `ok`, and `error` (with last-error payload and timestamp). Silent exception swallowing with only a `logger.exception()` is never sufficient — the poller must be able to distinguish "still running" from "permanently failed" without an external timeout.
+- **Partial-failure cleanup for multi-step external API calls.** If step N of a sequence calling an external API (e.g., `vector_stores.create`) succeeds but step N+1 fails, the code must either clean up (delete the resource from step N) or track the orphan for deferred cleanup. No external resource (vector store, S3 object, webhook) should be created without a corresponding rollback or orphan-tracking path.
+- **Explicit timeouts on blocking external API polls.** Background threads in FastAPI `BackgroundTasks` run in the starlette thread pool. Unbounded `poll()` calls block a pool worker indefinitely. Always pass `poll_interval_ms` and a total timeout deadline. Document the timeout budget in the function docstring.
+- **Process-local state requires deployment-model documentation.** Any in-memory guard, cache, or rate limiter (Python dict, set, module-level variable) must include an inline comment documenting: (a) what the multi-worker failure mode is, (b) what the user-visible consequence is, (c) what the precondition for safe deployment is (single-worker, sticky sessions, external lock).
+
+## TOCTOU and Concurrency Patterns
+
+- **Inspect-then-lock is a TOCTOU race.** Reading state (e.g., computing a signature from repository data) and then conditionally acquiring a lock based on that state has a window where the underlying data can change. Either fold the read into the lock boundary, or compute the state once and pass it as a parameter so the lock scope covers the guard condition.
+- **Do not read the same data twice across inspect/persist boundaries.** If a method reads chunks to compute a signature, pass the chunks and signature into the persist method rather than re-reading. This eliminates both the redundant I/O and the TOCTOU window.
+- **OpenAI idempotency keys expire after ~24 hours.** Retry-after-expiry scenarios can create duplicate resources with the same name. For flows that may be retried after long delays, check for existing resources before creating new ones.
+
 ## Buck2 Validation Discipline
 
 - If `backend/pyproject.toml` or `backend/uv.lock` changes, run `buck2 run //:backend-install` (or `buck2 run //:install`) before lint/test/typecheck.
