@@ -14,6 +14,7 @@ import {
   STREAM_EVENTS_SEPARATOR,
 } from "@/lib/chat/stream-metadata";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { AnimatedInput } from "@/components/ui/animated-input";
 
 type UploadPipelineResponse = {
@@ -110,15 +111,17 @@ export function DocumentChatWorkspace() {
     } | null
   >(null);
 
+  const [reviewEnabled, setReviewEnabled] = useState(false);
+
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const transport = useMemo(
     () =>
       new TextStreamChatTransport({
         api: "/api/chat",
-        body: { reasoning_effort: "medium" },
+        body: { reasoning_effort: "medium", review_enabled: reviewEnabled },
       }),
-    [],
+    [reviewEnabled],
   );
 
   const { messages, sendMessage, setMessages, status, error } = useChat({
@@ -270,19 +273,18 @@ export function DocumentChatWorkspace() {
           <span>{processingLabel}</span>
           <span>{processingProgress}%</span>
         </div>
-        <div
-          role="progressbar"
+        <progress
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={processingProgress}
           className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-900"
         >
           <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-stone-500 via-stone-300 to-stone-500"
+            className="h-full rounded-full bg-linear-to-r from-stone-500 via-stone-300 to-stone-500"
             animate={{ width: `${processingProgress}%` }}
             transition={{ duration: 0.2 }}
           />
-        </div>
+        </progress>
 
         <AnimatePresence initial={false}>
           {documentInfo
@@ -426,7 +428,7 @@ export function DocumentChatWorkspace() {
 
             {isSending &&
                 (messages.length === 0 ||
-                  messages[messages.length - 1]?.role === "user")
+                  messages.at(-1)?.role === "user")
               ? (
                 <AiMessageBubble
                   key="__thinking_placeholder__"
@@ -442,7 +444,7 @@ export function DocumentChatWorkspace() {
 
         <motion.div
           layout
-          className="absolute bottom-0 left-0 right-0 rounded-b-2xl bg-black/96 px-4 pb-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:rounded-b-3xl sm:px-5 sm:pb-5 sm:pt-4 md:px-6"
+          className="absolute bottom-0 left-0 right-0 rounded-b-2xl bg-black/96 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:rounded-b-3xl sm:px-5 sm:pb-5 sm:pt-4 md:px-6"
         >
           <div className="flex flex-col gap-3">
             <AnimatedInput
@@ -461,24 +463,54 @@ export function DocumentChatWorkspace() {
                 : ["Process a document to enable chat…"]}
               aria-label="Your message"
             />
-            <div className="flex gap-2 justify-end">
-              <Button
+            <div className="flex items-center justify-between">
+              <button
                 type="button"
-                variant="destructive"
-                onClick={() => setMessages([])}
-                disabled={isSending || messages.length === 0}
-                className="h-10 rounded-2xl px-4 sm:h-9"
+                role="switch"
+                aria-checked={reviewEnabled}
+                aria-label="Enable review workflow"
+                onClick={() => setReviewEnabled((v) => !v)}
+                className={cn(
+                  "flex items-center gap-2 text-xs transition-colors duration-150",
+                  "disabled:pointer-events-none disabled:opacity-50",
+                  reviewEnabled ? "text-stone-200" : "text-stone-500",
+                )}
               >
-                Clear
-              </Button>
-              <Button
-                type="button"
-                onClick={() => void send()}
-                disabled={chatDisabled || !prompt.trim()}
-                className="h-10 rounded-2xl px-5 sm:h-9 sm:px-4"
-              >
-                {isSending ? "Streaming…" : "Send"}
-              </Button>
+                <span
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
+                    reviewEnabled ? "bg-emerald-600" : "bg-zinc-700",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute top-0.5 inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200",
+                      reviewEnabled ? "translate-x-[18px]" : "translate-x-0.5",
+                    )}
+                  />
+                </span>
+                <span className="tracking-wide">Review</span>
+              </button>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setMessages([])}
+                  disabled={isSending || messages.length === 0}
+                  className="h-10 rounded-2xl px-4 sm:h-9"
+                >
+                  Clear
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void send()}
+                  disabled={chatDisabled || !prompt.trim()}
+                  className="h-10 rounded-2xl px-5 sm:h-9 sm:px-4"
+                >
+                  {isSending ? "Streaming…" : "Send"}
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -96,17 +96,20 @@ export async function POST(req: Request) {
         : newSessionId();
 
   const promptFromMessages = latestUserPrompt(body?.messages);
-  const promptFromBody = typeof body?.prompt === "string" ? body.prompt.trim() : "";
+  const promptFromBody =
+    typeof body?.prompt === "string" ? body.prompt.trim() : "";
   const prompt = promptFromMessages || promptFromBody;
 
   const reasoningEffortInput = body?.reasoning_effort;
   const reasoningEffort = coerceReasoningEffort(reasoningEffortInput).effort;
+  const reviewEnabled = body?.review_enabled === true;
 
   if (!prompt) {
     return streamTextResponse("(No prompt provided)", 400);
   }
 
-  const backendBase = process.env.SYNEXTRA_BACKEND_URL ?? "http://localhost:8000";
+  const backendBase =
+    process.env.SYNEXTRA_BACKEND_URL ?? "http://localhost:8000";
   const url = `${backendBase.replace(/\/$/, "")}/v1/rag/sessions/${encodeURIComponent(
     sessionId,
   )}/messages/stream`;
@@ -122,6 +125,7 @@ export async function POST(req: Request) {
         prompt,
         retrieval_mode: "hybrid",
         reasoning_effort: reasoningEffort,
+        review_enabled: reviewEnabled,
       }),
     });
 
@@ -131,7 +135,8 @@ export async function POST(req: Request) {
         status: backendRes.status,
         headers: {
           "content-type":
-            backendRes.headers.get("content-type") ?? "text/plain; charset=utf-8",
+            backendRes.headers.get("content-type") ??
+            "text/plain; charset=utf-8",
         },
       });
     }
@@ -143,7 +148,8 @@ export async function POST(req: Request) {
     return new Response(backendRes.body, {
       status: 200,
       headers: {
-        "content-type": backendRes.headers.get("content-type") ?? "text/plain; charset=utf-8",
+        "content-type":
+          backendRes.headers.get("content-type") ?? "text/plain; charset=utf-8",
         "cache-control": "no-cache",
       },
     });

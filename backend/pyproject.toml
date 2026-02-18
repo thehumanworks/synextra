@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "agentmish", email = "rodat.dev@proton.me" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "synextra>=0.1.0",
     "fastapi>=0.129.0",
@@ -54,7 +54,7 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
-target-version = "py314"
+target-version = "py312"
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -85,7 +85,7 @@ ignore = [
 [tool.mypy]
 files = ["src", "tests"]
 mypy_path = "src"
-python_version = "3.14"
+python_version = "3.12"
 strict = true
 warn_unused_configs = true
 
