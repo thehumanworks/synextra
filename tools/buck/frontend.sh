@@ -71,6 +71,7 @@ kill_new_listeners() {
 
 run_dev_server() {
   local frontend_port="${PORT:-3000}"
+  local launcher_pid="${PPID}"
   local known_port_pids
   local frontend_pid=0
   local frontend_pgid=""
@@ -92,9 +93,13 @@ run_dev_server() {
       sleep 1
 
       if [[ -n "${frontend_pgid}" ]]; then
-        kill -KILL -- "-${frontend_pgid}" 2>/dev/null || true
+        if kill -0 -- "-${frontend_pgid}" 2>/dev/null; then
+          kill -KILL -- "-${frontend_pgid}" 2>/dev/null || true
+        fi
       else
-        kill -KILL "${frontend_pid}" 2>/dev/null || true
+        if kill -0 "${frontend_pid}" 2>/dev/null; then
+          kill -KILL "${frontend_pid}" 2>/dev/null || true
+        fi
       fi
 
       wait "${frontend_pid}" 2>/dev/null || true
@@ -118,7 +123,26 @@ run_dev_server() {
     frontend_pid=$!
   fi
 
-  wait "${frontend_pid}"
+  while true; do
+    if ! kill -0 "${frontend_pid}" 2>/dev/null; then
+      set +e
+      wait "${frontend_pid}"
+      local status=$?
+      set -e
+
+      frontend_pid=0
+      frontend_pgid=""
+
+      return "${status}"
+    fi
+
+    if ! kill -0 "${launcher_pid}" 2>/dev/null; then
+      echo "frontend launcher process ${launcher_pid} exited; stopping dev server" >&2
+      cleanup_dev 1
+    fi
+
+    sleep 1
+  done
 }
 
 has_npm_script() {

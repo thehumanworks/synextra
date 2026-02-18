@@ -71,6 +71,7 @@ kill_new_listeners() {
 
 run_dev_server() {
   local backend_port="${SYNEXTRA_BACKEND_PORT:-8000}"
+  local launcher_pid="${PPID}"
   local known_port_pids
   local backend_pid=0
   local backend_pgid=""
@@ -92,9 +93,13 @@ run_dev_server() {
       sleep 1
 
       if [[ -n "${backend_pgid}" ]]; then
-        kill -KILL -- "-${backend_pgid}" 2>/dev/null || true
+        if kill -0 -- "-${backend_pgid}" 2>/dev/null; then
+          kill -KILL -- "-${backend_pgid}" 2>/dev/null || true
+        fi
       else
-        kill -KILL "${backend_pid}" 2>/dev/null || true
+        if kill -0 "${backend_pid}" 2>/dev/null; then
+          kill -KILL "${backend_pid}" 2>/dev/null || true
+        fi
       fi
 
       wait "${backend_pid}" 2>/dev/null || true
@@ -118,7 +123,26 @@ run_dev_server() {
     backend_pid=$!
   fi
 
-  wait "${backend_pid}"
+  while true; do
+    if ! kill -0 "${backend_pid}" 2>/dev/null; then
+      set +e
+      wait "${backend_pid}"
+      local status=$?
+      set -e
+
+      backend_pid=0
+      backend_pgid=""
+
+      return "${status}"
+    fi
+
+    if ! kill -0 "${launcher_pid}" 2>/dev/null; then
+      echo "backend launcher process ${launcher_pid} exited; stopping dev server" >&2
+      cleanup_dev 1
+    fi
+
+    sleep 1
+  done
 }
 
 case "$1" in
