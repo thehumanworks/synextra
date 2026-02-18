@@ -9,7 +9,7 @@ function makeResponse(overrides: Partial<StructuredChatResponse> = {}): Structur
   return {
     sessionId: "session-1",
     mode: "embedded",
-    answer: "# Heading\n\nSome **bold** text.",
+    answer: "# Heading\n\nSome **bold** text [1].",
     toolsUsed: [],
     citations: [
       {
@@ -59,6 +59,11 @@ describe("StructuredMessage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Quote one/i)).toBeVisible();
     });
+    expect(
+      screen.getByText(/Answer references use \[n\] and match the source tags below\./i)
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("[1]")).not.toHaveLength(0);
+    expect(screen.getByText("[2]")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open link/i })).toHaveAttribute(
       "href",
       "https://example.com/source-1",
@@ -97,5 +102,18 @@ describe("StructuredMessage", () => {
     expect(
       screen.getByText(/Response parsing failed; displaying raw assistant text/i)
     ).toBeInTheDocument();
+  });
+
+  it("opens matching source when inline [n] citation is clicked", async () => {
+    const user = userEvent.setup();
+    render(<StructuredMessage response={makeResponse()} />);
+
+    expect(screen.queryByText(/Quote one/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "[1]" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Quote one/i)).toBeInTheDocument();
+    });
   });
 });

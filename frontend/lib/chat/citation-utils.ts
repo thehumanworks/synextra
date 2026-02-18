@@ -1,5 +1,10 @@
 import type { Citation } from "@/lib/chat/structured-response";
 
+export type DedupedCitationWithReferenceIndices = {
+  citation: Citation;
+  referenceIndices: number[];
+};
+
 export function truncateQuote(quote: string, maxLen = 200): string {
   const cleaned = quote.replace(/\s+/g, " ").trim();
   if (cleaned.length <= maxLen) return cleaned;
@@ -17,24 +22,46 @@ function quoteFingerprint(quote: string, prefixLen = 160): string {
 }
 
 export function dedupeCitations(citations: Citation[]): Citation[] {
-  const seenChunkKeys = new Set<string>();
-  const seenQuoteKeys = new Set<string>();
-  const out: Citation[] = [];
+  return dedupeCitationsWithReferenceIndices(citations).map((entry) => entry.citation);
+}
 
-  for (const c of citations) {
+export function dedupeCitationsWithReferenceIndices(
+  citations: Citation[],
+): DedupedCitationWithReferenceIndices[] {
+  const seenChunkKeyToIndex = new Map<string, number>();
+  const seenQuoteKeyToIndex = new Map<string, number>();
+  const out: DedupedCitationWithReferenceIndices[] = [];
+
+  for (const [idx, c] of citations.entries()) {
+    const referenceIndex = idx + 1;
     const chunkKey = `${c.document_id}::${c.chunk_id}::${c.page_number ?? ""}`;
-    if (seenChunkKeys.has(chunkKey)) continue;
+    const existingByChunk = seenChunkKeyToIndex.get(chunkKey);
+    if (existingByChunk != null) {
+      out[existingByChunk].referenceIndices.push(referenceIndex);
+      continue;
+    }
 
     const fingerprint = quoteFingerprint(c.supporting_quote);
     const quoteKey = `${c.document_id}::${fingerprint}`;
-    if (fingerprint && seenQuoteKeys.has(quoteKey)) continue;
+    if (fingerprint) {
+      const existingByQuote = seenQuoteKeyToIndex.get(quoteKey);
+      if (existingByQuote != null) {
+        out[existingByQuote].referenceIndices.push(referenceIndex);
+        continue;
+      }
+    }
 
-    seenChunkKeys.add(chunkKey);
-    if (fingerprint) seenQuoteKeys.add(quoteKey);
-    out.push(c);
+    const outIndex = out.length;
+    seenChunkKeyToIndex.set(chunkKey, outIndex);
+    if (fingerprint) seenQuoteKeyToIndex.set(quoteKey, outIndex);
+    out.push({ citation: c, referenceIndices: [referenceIndex] });
   }
 
   return out;
+}
+
+export function formatReferenceIndices(referenceIndices: number[]): string {
+  return referenceIndices.map((idx) => `[${idx}]`).join(", ");
 }
 
 export function formatCitationId(citation: Citation): string {

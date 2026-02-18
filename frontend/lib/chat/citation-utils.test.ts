@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { dedupeCitations, formatCitationId, truncateQuote } from "./citation-utils";
+import {
+  dedupeCitations,
+  dedupeCitationsWithReferenceIndices,
+  formatCitationId,
+  truncateQuote,
+} from "./citation-utils";
 
 
 describe("citation-utils", () => {
@@ -65,6 +70,39 @@ describe("citation-utils", () => {
     expect(deduped).toHaveLength(2);
     expect(deduped[0].chunk_id).toBe("c1");
     expect(deduped[1].chunk_id).toBe("c3");
+  });
+
+  it("dedupeCitationsWithReferenceIndices preserves all original citation indexes", () => {
+    const citations = [
+      {
+        document_id: "doc",
+        chunk_id: "c1",
+        page_number: 1,
+        supporting_quote: "same quote",
+        source_tool: "bm25",
+      },
+      {
+        document_id: "doc",
+        chunk_id: "c2",
+        page_number: 1,
+        supporting_quote: "same quote",
+        source_tool: "vector",
+      },
+      {
+        document_id: "doc",
+        chunk_id: "c3",
+        page_number: 2,
+        supporting_quote: "different quote",
+        source_tool: "vector",
+      },
+    ];
+
+    const deduped = dedupeCitationsWithReferenceIndices(citations);
+    expect(deduped).toHaveLength(2);
+    expect(deduped[0].citation.chunk_id).toBe("c1");
+    expect(deduped[0].referenceIndices).toEqual([1, 2]);
+    expect(deduped[1].citation.chunk_id).toBe("c3");
+    expect(deduped[1].referenceIndices).toEqual([3]);
   });
 
   it("truncateQuote clamps long text", () => {

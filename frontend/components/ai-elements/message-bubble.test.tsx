@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import type { Citation } from "@/lib/chat/structured-response";
@@ -68,5 +69,34 @@ describe("AiMessageBubble", () => {
     render(<AiMessageBubble role="assistant" text="Answer" citations={[]} />);
 
     expect(screen.queryByRole("button", { name: /used/i })).not.toBeInTheDocument();
+  });
+
+  it("opens matching citation when inline [n] reference is clicked", async () => {
+    const user = userEvent.setup();
+    const citations: Citation[] = [
+      {
+        document_id: "doc-1",
+        chunk_id: "c1",
+        page_number: 5,
+        supporting_quote: "Relevant excerpt from the document.",
+        source_tool: "bm25",
+      },
+    ];
+
+    render(
+      <AiMessageBubble
+        role="assistant"
+        text="The answer is grounded in evidence [1]."
+        citations={citations}
+      />
+    );
+
+    expect(screen.queryByText(/relevant excerpt/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "[1]" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/relevant excerpt/i)).toBeInTheDocument();
+    });
   });
 });

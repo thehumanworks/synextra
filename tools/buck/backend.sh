@@ -23,6 +23,104 @@ fi
 
 cd "${BACKEND_DIR}"
 
+get_listening_pids() {
+  local port="$1"
+
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+    return
+  fi
+
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnp "sport = :${port}" 2>/dev/null \
+      | awk -F '[=, ]+' 'NR > 1 {for (i = 1; i <= NF; i++) if ($i == "pid") print $(i + 1)}' \
+      | sed '/^$/d' || true
+  fi
+}
+
+pid_in_list() {
+  local pid="$1"
+  local pid_list="$2"
+
+  if [[ -z "${pid_list}" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "${pid_list}" | grep -Fxq -- "${pid}"
+}
+
+kill_new_listeners() {
+  local port="$1"
+  local known_pids="$2"
+  local signal_name="${3:-TERM}"
+  local current_pid
+  local current_pids
+
+  current_pids="$(get_listening_pids "${port}")"
+
+  while IFS= read -r current_pid; do
+    if [[ -z "${current_pid}" ]]; then
+      continue
+    fi
+    if pid_in_list "${current_pid}" "${known_pids}"; then
+      continue
+    fi
+    kill "-${signal_name}" "${current_pid}" 2>/dev/null || true
+  done <<< "${current_pids}"
+}
+
+run_dev_server() {
+  local backend_port="${SYNEXTRA_BACKEND_PORT:-8000}"
+  local known_port_pids
+  local backend_pid=0
+  local backend_pgid=""
+
+  known_port_pids="$(get_listening_pids "${backend_port}")"
+
+  cleanup_dev() {
+    local status="${1:-0}"
+
+    trap - INT TERM EXIT
+
+    if [[ "${backend_pid}" -gt 0 ]]; then
+      if [[ -n "${backend_pgid}" ]]; then
+        kill -TERM -- "-${backend_pgid}" 2>/dev/null || true
+      else
+        kill -TERM "${backend_pid}" 2>/dev/null || true
+      fi
+
+      sleep 1
+
+      if [[ -n "${backend_pgid}" ]]; then
+        kill -KILL -- "-${backend_pgid}" 2>/dev/null || true
+      else
+        kill -KILL "${backend_pid}" 2>/dev/null || true
+      fi
+
+      wait "${backend_pid}" 2>/dev/null || true
+    fi
+
+    kill_new_listeners "${backend_port}" "${known_port_pids}" TERM
+    kill_new_listeners "${backend_port}" "${known_port_pids}" KILL
+
+    exit "${status}"
+  }
+
+  trap 'cleanup_dev 130' INT TERM
+  trap 'cleanup_dev $?' EXIT
+
+  if command -v setsid >/dev/null 2>&1; then
+    setsid uv run uvicorn synextra_backend.app:app --reload &
+    backend_pid=$!
+    backend_pgid="${backend_pid}"
+  else
+    uv run uvicorn synextra_backend.app:app --reload &
+    backend_pid=$!
+  fi
+
+  wait "${backend_pid}"
+}
+
 case "$1" in
   install)
     uv sync --dev
@@ -38,7 +136,7 @@ case "$1" in
     uv run mypy
     ;;
   dev)
-    uv run uvicorn synextra_backend.app:app --reload
+    run_dev_server
     ;;
   *)
     echo "unknown backend action: $1" >&2

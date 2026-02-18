@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 interface AnimatedInputProps {
   value: string
@@ -23,8 +23,10 @@ export function AnimatedInput({
 }: AnimatedInputProps) {
   const [isFocused, setIsFocused] = useState(false)
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
-  const [displayedText, setDisplayedText] = useState("")
-  const [isTyping, setIsTyping] = useState(true)
+  const [typedState, setTypedState] = useState<{ placeholder: string; count: number }>({
+    placeholder: "",
+    count: 0,
+  })
 
   const placeholders = useMemo(
     () =>
@@ -40,61 +42,48 @@ export function AnimatedInput({
   const CHAR_DELAY = 75
   const IDLE_DELAY_AFTER_FINISH = 2200
 
-  const intervalRef = useRef<number | null>(null)
-  const timeoutRef = useRef<number | null>(null)
+  const placeholderCount = placeholders.length
+  const activePlaceholder =
+    placeholderCount === 0 ? "" : (placeholders[placeholderIndex % placeholderCount] ?? "")
+  const placeholderChars = useMemo(() => Array.from(activePlaceholder), [activePlaceholder])
+  const typedCharsForActivePlaceholder =
+    typedState.placeholder === activePlaceholder ? typedState.count : 0
+  const clampedTypedChars = Math.min(typedCharsForActivePlaceholder, placeholderChars.length)
+  const displayedText = placeholderChars.slice(0, clampedTypedChars).join("")
+  const isTyping = clampedTypedChars < placeholderChars.length
 
   useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
-
-    const current = placeholders[placeholderIndex]
-    if (!current) {
-      setDisplayedText("")
-      setIsTyping(false)
+    if (!activePlaceholder) {
       return
     }
 
-    const chars = Array.from(current)
-    setDisplayedText("")
-    setIsTyping(true)
+    if (clampedTypedChars < placeholderChars.length) {
+      const typingTimer = window.setTimeout(() => {
+        setTypedState((prev) => {
+          if (prev.placeholder !== activePlaceholder) {
+            return { placeholder: activePlaceholder, count: 1 }
+          }
+          return {
+            placeholder: activePlaceholder,
+            count: Math.min(prev.count + 1, placeholderChars.length),
+          }
+        })
+      }, CHAR_DELAY)
 
-    let charIndex = 0
-
-    intervalRef.current = window.setInterval(() => {
-      if (charIndex < chars.length) {
-        const next = chars.slice(0, charIndex + 1).join("")
-        setDisplayedText(next)
-        charIndex += 1
-      } else {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current)
-          intervalRef.current = null
-        }
-        setIsTyping(false)
-
-        timeoutRef.current = window.setTimeout(() => {
-          setPlaceholderIndex((prev) => (prev + 1) % placeholders.length)
-        }, IDLE_DELAY_AFTER_FINISH)
-      }
-    }, CHAR_DELAY)
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-        timeoutRef.current = null
+      return () => {
+        window.clearTimeout(typingTimer)
       }
     }
-  }, [placeholderIndex, placeholders])
+
+    const idleTimer = window.setTimeout(() => {
+      setPlaceholderIndex((prev) => prev + 1)
+      setTypedState({ placeholder: "", count: 0 })
+    }, IDLE_DELAY_AFTER_FINISH)
+
+    return () => {
+      window.clearTimeout(idleTimer)
+    }
+  }, [activePlaceholder, clampedTypedChars, placeholderChars.length])
 
   return (
     <div

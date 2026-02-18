@@ -25,8 +25,10 @@
 - For UI rendering bugs tied to assistant output, inspect and document the backend payload shape/runtime mode before treating it as a frontend-only issue.
 - If `structured-response` falls back to raw text, call this out early in diagnosis and verify whether malformed formatting originates upstream.
 - For Streamdown/AI Elements markdown rendering, keep `@import "katex/dist/katex.min.css"`, `@import "streamdown/styles.css"`, and `@source "../node_modules/streamdown/dist/*.js"` in `app/globals.css`; missing any of these causes broken markdown/math styling.
+- Streamdown link rendering defaults to link-safety button wrappers (not plain `<a>`), so citation-specific link interception should be implemented via `components.a` override rather than relying on anchor click delegation.
 - With `useChat` + `TextStreamChatTransport`, custom backends should return plain streamed text (`text/plain`) rather than UI-message SSE parts; use default transport only when emitting the full AI SDK UI-message stream protocol and headers.
 - For citation-dedupe/render fixes, add tests that cover near-duplicate citation payloads, not only exact duplicate ids.
+- Inline answer citation markers (`[n]`) map to the original citation array order from backend synthesis context; source UI must surface matching `[n]` tags (or grouped tags when deduping) so references stay traceable.
 - For citation cards, do not expose raw chunk/document UUID-like ids as body text; keep source UI human-readable (`Page N`, title/link, quote, source tool).
 - Keep the sources panel collapsed by default and preserve `motion`-based expand/collapse behavior; include tests for both closed and opened states.
 - Frontend chat/upload routes must continue sending `retrieval_mode: "hybrid"` (runtime policy), even though shared schemas still accept `embedded|vector|hybrid` for compatibility.

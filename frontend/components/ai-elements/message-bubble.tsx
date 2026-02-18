@@ -1,9 +1,11 @@
 "use client";
 
+import { useCallback, useId, useMemo, useState } from "react";
 import { motion } from "motion/react";
 
 import { CitationAccordion } from "@/components/chat/citation-accordion";
 import { MarkdownResponse } from "@/components/chat/markdown-response";
+import { injectCitationReferenceLinks } from "@/lib/chat/citation-reference-links";
 import type { Citation } from "@/lib/chat/structured-response";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +25,25 @@ export function AiMessageBubble({
   citations,
 }: AiMessageBubbleProps) {
   const isUser = role === "user";
+  const citationScopeId = useId();
+  const hasCitations = !isUser && (citations?.length ?? 0) > 0;
+  const [focusReferenceIndex, setFocusReferenceIndex] = useState<number | null>(null);
+
+  const renderedText = useMemo(() => {
+    if (!hasCitations) return text;
+    return injectCitationReferenceLinks(text, {
+      scopeId: citationScopeId,
+      maxIndex: citations?.length ?? 0,
+    });
+  }, [citationScopeId, citations?.length, hasCitations, text]);
+
+  const handleCitationReferenceClick = useCallback((index: number) => {
+    setFocusReferenceIndex(index);
+  }, []);
+
+  const handleFocusReferenceHandled = useCallback(() => {
+    setFocusReferenceIndex(null);
+  }, []);
 
   return (
     <motion.div
@@ -41,13 +62,20 @@ export function AiMessageBubble({
         <MarkdownResponse
           mode="static"
           isAnimating={isStreaming}
+          citationReferenceScopeId={hasCitations ? citationScopeId : undefined}
+          onCitationReferenceClick={hasCitations ? handleCitationReferenceClick : undefined}
           className="text-sm leading-relaxed text-stone-100"
         >
-          {text}
+          {renderedText}
         </MarkdownResponse>
       )}
       {!isUser && citations && citations.length > 0 ? (
-        <CitationAccordion citations={citations} />
+        <CitationAccordion
+          citations={citations}
+          referenceScopeId={citationScopeId}
+          focusReferenceIndex={focusReferenceIndex}
+          onFocusReferenceHandled={handleFocusReferenceHandled}
+        />
       ) : null}
     </motion.div>
   );

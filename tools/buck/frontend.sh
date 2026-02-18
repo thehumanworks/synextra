@@ -23,6 +23,104 @@ fi
 
 cd "${FRONTEND_DIR}"
 
+get_listening_pids() {
+  local port="$1"
+
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+    return
+  fi
+
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnp "sport = :${port}" 2>/dev/null \
+      | awk -F '[=, ]+' 'NR > 1 {for (i = 1; i <= NF; i++) if ($i == "pid") print $(i + 1)}' \
+      | sed '/^$/d' || true
+  fi
+}
+
+pid_in_list() {
+  local pid="$1"
+  local pid_list="$2"
+
+  if [[ -z "${pid_list}" ]]; then
+    return 1
+  fi
+
+  printf '%s\n' "${pid_list}" | grep -Fxq -- "${pid}"
+}
+
+kill_new_listeners() {
+  local port="$1"
+  local known_pids="$2"
+  local signal_name="${3:-TERM}"
+  local current_pid
+  local current_pids
+
+  current_pids="$(get_listening_pids "${port}")"
+
+  while IFS= read -r current_pid; do
+    if [[ -z "${current_pid}" ]]; then
+      continue
+    fi
+    if pid_in_list "${current_pid}" "${known_pids}"; then
+      continue
+    fi
+    kill "-${signal_name}" "${current_pid}" 2>/dev/null || true
+  done <<< "${current_pids}"
+}
+
+run_dev_server() {
+  local frontend_port="${PORT:-3000}"
+  local known_port_pids
+  local frontend_pid=0
+  local frontend_pgid=""
+
+  known_port_pids="$(get_listening_pids "${frontend_port}")"
+
+  cleanup_dev() {
+    local status="${1:-0}"
+
+    trap - INT TERM EXIT
+
+    if [[ "${frontend_pid}" -gt 0 ]]; then
+      if [[ -n "${frontend_pgid}" ]]; then
+        kill -TERM -- "-${frontend_pgid}" 2>/dev/null || true
+      else
+        kill -TERM "${frontend_pid}" 2>/dev/null || true
+      fi
+
+      sleep 1
+
+      if [[ -n "${frontend_pgid}" ]]; then
+        kill -KILL -- "-${frontend_pgid}" 2>/dev/null || true
+      else
+        kill -KILL "${frontend_pid}" 2>/dev/null || true
+      fi
+
+      wait "${frontend_pid}" 2>/dev/null || true
+    fi
+
+    kill_new_listeners "${frontend_port}" "${known_port_pids}" TERM
+    kill_new_listeners "${frontend_port}" "${known_port_pids}" KILL
+
+    exit "${status}"
+  }
+
+  trap 'cleanup_dev 130' INT TERM
+  trap 'cleanup_dev $?' EXIT
+
+  if command -v setsid >/dev/null 2>&1; then
+    setsid npm run dev --host &
+    frontend_pid=$!
+    frontend_pgid="${frontend_pid}"
+  else
+    npm run dev --host &
+    frontend_pid=$!
+  fi
+
+  wait "${frontend_pid}"
+}
+
 has_npm_script() {
   node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));process.exit(p.scripts&&p.scripts[process.argv[1]]?0:1)' "$1"
 }
@@ -54,7 +152,7 @@ build)
   npm run build
   ;;
 dev)
-  npm run dev --host
+  run_dev_server
   ;;
 *)
   echo "unknown frontend action: $1" >&2

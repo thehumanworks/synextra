@@ -1,0 +1,172 @@
+{
+  "task_id": "FE-2026-02-18-002",
+  "feature_branch": "main",
+  "description": "Fix existing frontend lint blocker, make inline citation references clickable to matching source cards, and add a modal for full citation excerpts.",
+  "related_adrs": [
+    "frontend/adrs/0005-citation-reference-navigation-and-modal.md"
+  ],
+  "bdd_flows": [
+    {
+      "title": "Inline citation marker opens matching source",
+      "given": "assistant text contains inline markers like [1]",
+      "when": "the user clicks a marker",
+      "then": "the sources accordion expands and focuses the matching source tag"
+    },
+    {
+      "title": "User can inspect full citation text",
+      "given": "a source card contains a truncated quote",
+      "when": "the user clicks Expand excerpt",
+      "then": "a modal opens showing the full citation excerpt and metadata"
+    },
+    {
+      "title": "Lint blocker is removed before citation UX work",
+      "given": "frontend lint previously failed on animated input",
+      "when": "the pre-task fix is applied",
+      "then": "lint has zero errors before citation feature edits"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "streamdown",
+      "repository": "https://github.com/vercel/streamdown",
+      "purpose": "markdown rendering with custom link handling for citation markers"
+    },
+    {
+      "name": "motion",
+      "repository": "https://github.com/motiondivision/motion",
+      "purpose": "accordion and modal enter/exit animations"
+    },
+    {
+      "name": "@testing-library/react",
+      "repository": "https://github.com/testing-library/react-testing-library",
+      "purpose": "component interaction coverage for citation navigation and modal behavior"
+    }
+  ],
+  "target_files": [
+    "frontend/components/ui/animated-input.tsx",
+    "frontend/lib/chat/citation-reference-links.ts",
+    "frontend/lib/chat/citation-reference-links.test.ts",
+    "frontend/components/chat/markdown-response.tsx",
+    "frontend/components/chat/citation-accordion.tsx",
+    "frontend/components/chat/citation-accordion.test.tsx",
+    "frontend/components/ai-elements/message-bubble.tsx",
+    "frontend/components/ai-elements/message-bubble.test.tsx",
+    "frontend/components/chat/structured-message.tsx",
+    "frontend/components/chat/structured-message.test.tsx",
+    "frontend/adrs/0005-citation-reference-navigation-and-modal.md",
+    "frontend/tasks/FE-2026-02-18-002.json"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "assistant text contains an in-range citation marker [n]",
+      "when": "the marker is clicked",
+      "then": "the corresponding source card is revealed and focused"
+    },
+    {
+      "if": "a source excerpt is truncated in the card",
+      "when": "Expand excerpt is clicked",
+      "then": "a dialog displays the full supporting quote"
+    },
+    {
+      "if": "citation cards dedupe multiple references",
+      "when": "source cards are rendered",
+      "then": "all original reference ids remain addressable by scoped element ids"
+    },
+    {
+      "if": "animated input runs typing cycle",
+      "when": "lint checks hooks rules",
+      "then": "no setState-in-effect error is emitted"
+    }
+  ],
+  "test_plan": {
+    "tdd_sequence": [
+      "Write failing tests for citation link-to-source behavior and citation modal interactions.",
+      "Write failing helper tests for citation reference link rewriting/parsing.",
+      "Implement markdown link rewriting/interception plus accordion focus and modal UX.",
+      "Run targeted tests first, then full build/test/typecheck/lint checks."
+    ],
+    "unit_tests": [
+      "frontend/lib/chat/citation-reference-links.test.ts",
+      "frontend/components/chat/citation-accordion.test.tsx",
+      "frontend/components/ai-elements/message-bubble.test.tsx",
+      "frontend/components/chat/structured-message.test.tsx"
+    ],
+    "integration_tests": [
+      "frontend/components/document-chat-workspace.test.tsx"
+    ],
+    "playwright_manual_validation": [
+      {
+        "id": "PW-CITATION-NAV-001",
+        "step": "Submit a prompt with inline [n] markers and click one marker.",
+        "expected": "Sources panel opens and highlights the matching source tag."
+      },
+      {
+        "id": "PW-CITATION-NAV-002",
+        "step": "Click Expand excerpt on a source card.",
+        "expected": "Modal shows full citation quote and closes via close button or Escape."
+      }
+    ]
+  },
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer-subagent",
+    "verdict": "pass",
+    "notes": [
+      "Initial adversarial review found two issues (accordion auto-collapse and placeholder reset), both fixed and re-reviewed.",
+      "Fix verification review confirmed root causes addressed across mandatory categories."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-18T11:26:00Z",
+      "actor": "codex",
+      "entry": "Triaged existing lint failure in animated-input and confirmed root cause was synchronous setState calls inside an effect."
+    },
+    {
+      "timestamp": "2026-02-18T11:29:00Z",
+      "actor": "codex",
+      "entry": "Refactored animated-input placeholder typing loop to timer-driven state updates without synchronous effect setState; lint now has warnings only and no errors."
+    },
+    {
+      "timestamp": "2026-02-18T11:33:00Z",
+      "actor": "codex",
+      "entry": "Added failing tests for citation reference navigation, accordion focus behavior, and full-excerpt modal interactions."
+    },
+    {
+      "timestamp": "2026-02-18T11:36:00Z",
+      "actor": "codex",
+      "entry": "Implemented scoped citation link helper, markdown citation click interception, accordion auto-focus/highlight, and citation detail modal in both streaming and structured render paths."
+    },
+    {
+      "timestamp": "2026-02-18T11:38:00Z",
+      "actor": "codex",
+      "entry": "Ran full frontend validation (build/test/typecheck/lint); lint surfaced new react-hooks/set-state-in-effect errors in citation-accordion and warnings only elsewhere."
+    },
+    {
+      "timestamp": "2026-02-18T11:41:00Z",
+      "actor": "codex",
+      "entry": "Refactored citation accordion open/highlight flow to remove synchronous effect setState; updated tests and restored lint to zero errors."
+    },
+    {
+      "timestamp": "2026-02-18T11:42:00Z",
+      "actor": "codex",
+      "entry": "Addressed review finding on AnimatedInput placeholder resets by tracking typed state with active placeholder identity."
+    },
+    {
+      "timestamp": "2026-02-18T11:44:00Z",
+      "actor": "codex",
+      "entry": "Completed full frontend quality gate: build/test/typecheck/lint all pass with zero errors (two pre-existing warnings remain)."
+    },
+    {
+      "timestamp": "2026-02-18T11:46:00Z",
+      "actor": "codex",
+      "entry": "Recorded ADR 0005 and updated frontend/AGENTS.md with Streamdown link-wrapper guidance; verification subagent review passed with no remaining findings."
+    }
+  ]
+}

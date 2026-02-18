@@ -1,0 +1,142 @@
+{
+  "task_id": "FE-2026-02-18-001",
+  "feature_branch": "main",
+  "description": "Make inline citation markers like [1] traceable in the source accordion by exposing matching source indices and preserving index mapping when citation cards are deduped.",
+  "related_adrs": [
+    "frontend/adrs/0003-structured-chat-rendering-and-mode-routing.md",
+    "frontend/adrs/0004-streaming-document-chat-workspace.md"
+  ],
+  "bdd_flows": [
+    {
+      "title": "Inline citation index maps to source cards",
+      "given": "assistant text includes inline references like [1] and [2]",
+      "when": "the sources accordion is expanded",
+      "then": "each source card shows matching [n] tags so users can map answer references to sources"
+    },
+    {
+      "title": "Deduped cards retain original citation references",
+      "given": "multiple citation payload items collapse into one card during dedupe",
+      "when": "the source card is rendered",
+      "then": "the card shows every original source index tag (for example [1], [2])"
+    },
+    {
+      "title": "Structured and streaming renderers stay aligned",
+      "given": "structured-message and AI message bubble render citations",
+      "when": "citation UI is displayed",
+      "then": "both views show the same index mapping guidance and source tags"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "motion",
+      "repository": "https://github.com/motiondivision/motion",
+      "purpose": "preserve existing sources accordion open/close animation"
+    },
+    {
+      "name": "@testing-library/react",
+      "repository": "https://github.com/testing-library/react-testing-library",
+      "purpose": "component regression tests for index mapping UI"
+    },
+    {
+      "name": "vitest",
+      "repository": "https://github.com/vitest-dev/vitest",
+      "purpose": "unit and component test execution"
+    }
+  ],
+  "target_files": [
+    "frontend/lib/chat/citation-utils.ts",
+    "frontend/lib/chat/citation-utils.test.ts",
+    "frontend/components/chat/citation-accordion.tsx",
+    "frontend/components/chat/citation-accordion.test.tsx",
+    "frontend/components/chat/structured-message.tsx",
+    "frontend/components/chat/structured-message.test.tsx",
+    "frontend/AGENTS.md",
+    "frontend/tasks/FE-2026-02-18-001.json"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "the source accordion is opened with two citations",
+      "when": "the citation cards render",
+      "then": "the UI displays [1] and [2] source tags plus mapping helper copy"
+    },
+    {
+      "if": "two citations dedupe to one card",
+      "when": "the deduped card is shown",
+      "then": "the card displays both reference tags ([1], [2])"
+    },
+    {
+      "if": "structured message rendering path is used",
+      "when": "sources are expanded",
+      "then": "the citation UI matches the same source-tag mapping behavior as streaming"
+    }
+  ],
+  "test_plan": {
+    "tdd_sequence": [
+      "Add failing citation accordion and structured message assertions for mapping helper copy and [n] source tags.",
+      "Add failing citation-utils tests for dedupe with retained original reference indices.",
+      "Implement shared citation index mapping utility and update renderers.",
+      "Run targeted tests first, then full frontend lint/typecheck/test validation."
+    ],
+    "unit_tests": [
+      "frontend/lib/chat/citation-utils.test.ts",
+      "frontend/components/chat/citation-accordion.test.tsx",
+      "frontend/components/chat/structured-message.test.tsx"
+    ],
+    "integration_tests": [
+      "frontend/components/document-chat-workspace.test.tsx"
+    ],
+    "playwright_manual_validation": [
+      {
+        "id": "PW-CITATION-INDEX-001",
+        "step": "Send a prompt that produces inline [n] citations and expand sources.",
+        "expected": "Source cards show matching [n] tags and helper copy explaining mapping."
+      }
+    ]
+  },
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "review",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "explorer-subagent",
+    "verdict": "pass",
+    "notes": [
+      "Adversarial review completed across mandatory categories; no findings."
+    ]
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-18T11:15:00Z",
+      "actor": "codex",
+      "entry": "Traced backend synthesis context and confirmed citation indices are assigned by citation array order via enumerate(start=1)."
+    },
+    {
+      "timestamp": "2026-02-18T11:18:00Z",
+      "actor": "codex",
+      "entry": "Added failing frontend tests for explicit [n] source tag mapping and dedupe-preserved index references."
+    },
+    {
+      "timestamp": "2026-02-18T11:20:00Z",
+      "actor": "codex",
+      "entry": "Implemented dedupe-with-reference-index utility and updated citation UI rendering in both streaming and structured paths."
+    },
+    {
+      "timestamp": "2026-02-18T11:21:00Z",
+      "actor": "codex",
+      "entry": "Validated targeted tests plus full frontend typecheck and test suite; lint still reports a pre-existing error in frontend/components/ui/animated-input.tsx unrelated to this task."
+    },
+    {
+      "timestamp": "2026-02-18T11:24:00Z",
+      "actor": "codex",
+      "entry": "Updated frontend/AGENTS.md with durable guidance that inline [n] markers must map to visible source tags, including dedupe-grouped index display."
+    },
+    {
+      "timestamp": "2026-02-18T11:26:00Z",
+      "actor": "codex",
+      "entry": "Ran adversarial subagent review with mandatory category enumeration (API contract, concurrency, state scope, error handling, recovery, test fidelity); review passed with no findings."
+    }
+  ]
+}
