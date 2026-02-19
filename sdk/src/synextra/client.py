@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
+from agents import set_default_openai_api
 from synextra.repositories.rag_document_repository import (
     ChunkRecord,
     InMemoryRagDocumentRepository,
@@ -93,6 +94,15 @@ class ResearchResult:
 
 ReviewVerdict = Literal["approved", "rejected", "unknown"]
 _HYBRID_MODE: RetrievalMode = "hybrid"
+OpenAIApi = Literal["chat_completions", "responses"]
+
+_OPENAI_API_KEY_ENV = "OPENAI_API_KEY"
+_AZURE_OPENAI_API_KEY_ENV = "AZURE_OPENAI_API_KEY"
+_OPENAI_BASE_URL_ENV = "OPENAI_BASE_URL"
+_AZURE_OPENAI_BASE_URL_ENV = "AZURE_OPENAI_BASE_URL"
+_AZURE_OPENAI_ENDPOINT_ENV = "AZURE_OPENAI_ENDPOINT"
+_OPENAI_API_MODE_ENV = "SYNEXTRA_OPENAI_API"
+_SUPPORTED_OPENAI_APIS = frozenset({"responses", "chat_completions"})
 
 
 @dataclass(frozen=True)
@@ -165,6 +175,56 @@ def _run_awaitable[T](factory: Callable[[], Awaitable[T]]) -> T:
     return result["value"]
 
 
+def _read_non_empty_env(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    return None
+
+
+def _resolve_openai_api_key(explicit_key: str | None) -> str | None:
+    if explicit_key is not None:
+        stripped = explicit_key.strip()
+        return stripped or None
+    return _read_non_empty_env(_OPENAI_API_KEY_ENV, _AZURE_OPENAI_API_KEY_ENV)
+
+
+def _azure_endpoint_to_base_url(endpoint: str) -> str:
+    normalized = endpoint.strip().rstrip("/")
+    if normalized.endswith("/openai/v1"):
+        return normalized + "/"
+    if normalized.endswith("/openai"):
+        return normalized + "/v1/"
+    return normalized + "/openai/v1/"
+
+
+def _resolve_openai_base_url(explicit_base_url: str | None) -> str | None:
+    if explicit_base_url is not None:
+        stripped = explicit_base_url.strip()
+        return stripped or None
+
+    configured_base_url = _read_non_empty_env(_OPENAI_BASE_URL_ENV, _AZURE_OPENAI_BASE_URL_ENV)
+    if configured_base_url:
+        return configured_base_url
+
+    azure_endpoint = _read_non_empty_env(_AZURE_OPENAI_ENDPOINT_ENV)
+    if azure_endpoint:
+        return _azure_endpoint_to_base_url(azure_endpoint)
+
+    return None
+
+
+def _normalize_openai_api(value: str) -> OpenAIApi:
+    normalized = value.strip().lower()
+    if normalized not in _SUPPORTED_OPENAI_APIS:
+        supported = ", ".join(sorted(_SUPPORTED_OPENAI_APIS))
+        raise SynextraConfigurationError(
+            f"Invalid OpenAI API mode {value!r}. Use one of: {supported}."
+        )
+    return cast(OpenAIApi, normalized)
+
+
 class Synextra:
     """Synextra SDK facade.
 
@@ -179,6 +239,14 @@ class Synextra:
     openai_api_key:
         If provided, sets ``OPENAI_API_KEY`` for the process (used by ``openai-agents``).
         If omitted, the SDK will read it from the environment.
+        ``AZURE_OPENAI_API_KEY`` is also accepted as an alias.
+    openai_base_url:
+        Optional OpenAI-compatible base URL override. Useful for Azure OpenAI
+        and other compatible endpoints.
+    openai_api:
+        Optional API shape override for the Agents SDK (`responses` or
+        `chat_completions`). If omitted, the SDK keeps the default (`responses`)
+        unless ``SYNEXTRA_OPENAI_API`` is set.
     model:
         Optional override for the chat model used by the orchestrator.
         Sets ``SYNEXTRA_CHAT_MODEL``.
@@ -190,14 +258,31 @@ class Synextra:
         self,
         openai_api_key: str | None = None,
         *,
+        openai_base_url: str | None = None,
+        openai_api: OpenAIApi | None = None,
         model: str | None = None,
         repository: RagDocumentRepository | None = None,
     ) -> None:
-        if openai_api_key is not None:
-            os.environ["OPENAI_API_KEY"] = openai_api_key
+        resolved_api_key = _resolve_openai_api_key(openai_api_key)
+        if resolved_api_key is not None:
+            os.environ[_OPENAI_API_KEY_ENV] = resolved_api_key
+
+        resolved_base_url = _resolve_openai_base_url(openai_base_url)
+        if resolved_base_url is not None:
+            os.environ[_OPENAI_BASE_URL_ENV] = resolved_base_url
 
         if model is not None:
             os.environ["SYNEXTRA_CHAT_MODEL"] = model
+
+        resolved_api_mode: OpenAIApi | None
+        if openai_api is not None:
+            resolved_api_mode = _normalize_openai_api(openai_api)
+        else:
+            env_mode = _read_non_empty_env(_OPENAI_API_MODE_ENV)
+            resolved_api_mode = _normalize_openai_api(env_mode) if env_mode is not None else None
+
+        if resolved_api_mode is not None:
+            set_default_openai_api(resolved_api_mode)
 
         self._repository: RagDocumentRepository = repository or InMemoryRagDocumentRepository()
         self._bm25_store = Bm25IndexStore()
@@ -241,11 +326,13 @@ class Synextra:
         return self._orchestrator
 
     def _ensure_openai_key(self) -> None:
-        if os.getenv("OPENAI_API_KEY"):
+        resolved_api_key = _resolve_openai_api_key(None)
+        if resolved_api_key:
+            os.environ[_OPENAI_API_KEY_ENV] = resolved_api_key
             return
         raise SynextraConfigurationError(
-            "Missing OPENAI_API_KEY. Provide Synextra(openai_api_key=...) "
-            "or set the environment variable."
+            "Missing OpenAI API key. Provide Synextra(openai_api_key=...) or set "
+            "OPENAI_API_KEY / AZURE_OPENAI_API_KEY."
         )
 
     def ingest(

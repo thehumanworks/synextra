@@ -59,6 +59,22 @@ From this point there are few things that can be added for the application to ma
 
 Below are developer setup instructions to get things up and running.
 
+## Provider Configuration (OpenAI / Azure OpenAI)
+
+The SDK/CLI/backend use `openai-agents` with OpenAI-compatible configuration.
+
+- API key:
+  - `OPENAI_API_KEY`
+  - `AZURE_OPENAI_API_KEY` (alias)
+- Base URL:
+  - `OPENAI_BASE_URL`
+  - `AZURE_OPENAI_BASE_URL` (alias)
+  - `AZURE_OPENAI_ENDPOINT` (auto-converted to `/openai/v1/` by SDK)
+- Optional API shape override:
+  - `SYNEXTRA_OPENAI_API=responses|chat_completions`
+
+Azure note: model identifiers must be deployment names.
+
 ## Developer Setup (without `buck2`)
 
 ### Module Quickstart

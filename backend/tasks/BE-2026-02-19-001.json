@@ -1,0 +1,129 @@
+{
+  "task_id": "BE-2026-02-19-001",
+  "feature_branch": "cursor/azure-openai-integration-dbc9",
+  "description": "Add Azure OpenAI-compatible configuration for SDK/CLI OpenAI interactions (base URL + key aliases + API-shape override), with tests, ADR, and documentation updates.",
+  "bdd_flows": [
+    {
+      "title": "SDK accepts Azure-compatible OpenAI configuration",
+      "given": "a runtime configured with Azure credentials/endpoints",
+      "when": "Synextra is initialized",
+      "then": "it resolves API key aliases, base URL aliases, and optional API-shape overrides without breaking default OpenAI behavior"
+    },
+    {
+      "title": "CLI forwards compatibility options into SDK",
+      "given": "a user invoking `synextra query|research|synthesize|chat`",
+      "when": "they pass `--openai-base-url` and `--openai-api` (or env vars)",
+      "then": "the CLI constructs `Synextra(...)` with those values and continues to require explicit grounded-document workflows"
+    },
+    {
+      "title": "Invalid API-shape configuration is rejected early",
+      "given": "an unsupported API mode configured in environment",
+      "when": "Synextra starts",
+      "then": "it raises a configuration error before model calls"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "openai-agents-python",
+      "repository": "https://github.com/openai/openai-agents-python",
+      "purpose": "verify custom base_url client support and Responses vs Chat Completions mode toggles"
+    },
+    {
+      "name": "openai-python",
+      "repository": "https://github.com/openai/openai-python",
+      "purpose": "verify Azure OpenAI client/base_url/api-version guidance and deployment-name semantics"
+    },
+    {
+      "name": "Microsoft Learn Azure OpenAI docs",
+      "repository": "https://learn.microsoft.com/en-us/azure/ai-foundry/openai/",
+      "purpose": "verify endpoint switching guidance and deployment-name requirements for model parameters"
+    }
+  ],
+  "target_files": [
+    "sdk/src/synextra/client.py",
+    "sdk/tests/test_sdk_openai_config.py",
+    "cli/src/synextra_cli/main.py",
+    "cli/tests/test_cli_smoke.py",
+    "sdk/adrs/0002-azure-openai-compatible-config.md",
+    "sdk/README.md",
+    "cli/README.md",
+    "backend/README.md",
+    "README.md",
+    "sdk/AGENTS.md",
+    "cli/AGENTS.md",
+    "AGENTS.md",
+    "backend/tasks/BE-2026-02-19-001.json"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "only AZURE_OPENAI_API_KEY is provided",
+      "when": "Synextra initializes and validates config",
+      "then": "OPENAI_API_KEY-compatible runtime usage still works"
+    },
+    {
+      "if": "AZURE_OPENAI_ENDPOINT is configured without OPENAI_BASE_URL",
+      "when": "Synextra initializes",
+      "then": "it derives an OpenAI-compatible `/openai/v1/` base URL"
+    },
+    {
+      "if": "CLI query is invoked with OpenAI compatibility flags",
+      "when": "the command constructs Synextra",
+      "then": "openai_base_url and openai_api arguments are forwarded"
+    }
+  ],
+  "tdd_test_matrix": [
+    {
+      "layer": "sdk-unit",
+      "focus": "configuration resolution and validation",
+      "cases": [
+        "azure key alias acceptance",
+        "base_url explicit + derived resolution",
+        "invalid API mode rejection",
+        "API mode setter invocation"
+      ]
+    },
+    {
+      "layer": "cli-unit",
+      "focus": "command wiring and env fallback",
+      "cases": [
+        "AZURE_OPENAI_API_KEY fallback",
+        "query help exposes compatibility options",
+        "query forwards compatibility flags to Synextra"
+      ]
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "todo",
+  "required_subagent_review": {
+    "required": true,
+    "reviewer": "",
+    "verdict": "",
+    "notes": []
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-02-19T00:05:00Z",
+      "actor": "codex",
+      "entry": "Scanned SDK/CLI/backend OpenAI integration points and confirmed base_url support was not yet wired through Synextra or CLI options."
+    },
+    {
+      "timestamp": "2026-02-19T00:12:00Z",
+      "actor": "codex",
+      "entry": "Dependency priming: `which wit && wit --help` returned no available `wit` skill binary in this environment, so upstream verification proceeded via direct official docs/source fetches."
+    },
+    {
+      "timestamp": "2026-02-19T00:18:00Z",
+      "actor": "codex",
+      "entry": "Web/doc research findings: openai-agents supports custom AsyncOpenAI(base_url, api_key) and optional `set_default_openai_api('chat_completions')`; openai-python + Microsoft docs confirm Azure OpenAI uses deployment names and OpenAI-compatible base_url patterns."
+    },
+    {
+      "timestamp": "2026-02-19T00:30:00Z",
+      "actor": "codex",
+      "entry": "Implemented SDK config plumbing for Azure/OpenAI-compatible key/base_url aliases and optional API mode override; added initial SDK/CLI test coverage updates."
+    }
+  ]
+}

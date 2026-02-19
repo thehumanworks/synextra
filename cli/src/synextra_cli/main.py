@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 from synextra import ResearchResult, Synextra
@@ -18,8 +18,12 @@ def _require_api_key(provided: str | None) -> str:
     env = os.getenv("OPENAI_API_KEY", "").strip()
     if env:
         return env
+    azure_env = os.getenv("AZURE_OPENAI_API_KEY", "").strip()
+    if azure_env:
+        return azure_env
     raise typer.BadParameter(
-        "Missing OpenAI API key. Provide --openai-api-key or set OPENAI_API_KEY."
+        "Missing OpenAI API key. Provide --openai-api-key or set "
+        "OPENAI_API_KEY / AZURE_OPENAI_API_KEY."
     )
 
 
@@ -58,6 +62,24 @@ OptionalDocumentOption = Annotated[
     ),
 ]
 
+OpenAIApi = Literal["responses", "chat_completions"]
+OpenAIBaseUrlOption = Annotated[
+    str | None,
+    typer.Option(
+        "--openai-base-url",
+        envvar=["OPENAI_BASE_URL", "AZURE_OPENAI_BASE_URL"],
+        help="OpenAI-compatible base URL (for example Azure OpenAI /openai/v1/ endpoint).",
+    ),
+]
+OpenAIApiOption = Annotated[
+    OpenAIApi | None,
+    typer.Option(
+        "--openai-api",
+        envvar="SYNEXTRA_OPENAI_API",
+        help="responses|chat_completions (override OpenAI API shape for openai-agents).",
+    ),
+]
+
 
 @app.command()
 def query(
@@ -79,6 +101,8 @@ def query(
         str | None,
         typer.Option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key."),
     ] = None,
+    openai_base_url: OpenAIBaseUrlOption = None,
+    openai_api: OpenAIApiOption = None,
     model: Annotated[
         str | None,
         typer.Option("--model", help="Override SYNEXTRA_CHAT_MODEL for this run."),
@@ -99,7 +123,12 @@ def query(
     """Ingest required documents and run the full research->review->synthesize pipeline."""
 
     key = _require_api_key(openai_api_key)
-    client = Synextra(openai_api_key=key, model=model)
+    client = Synextra(
+        openai_api_key=key,
+        openai_base_url=openai_base_url,
+        openai_api=openai_api,
+        model=model,
+    )
 
     ingest_results = _ingest_all(client, documents)
 
@@ -140,6 +169,8 @@ def research(
         str | None,
         typer.Option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key."),
     ] = None,
+    openai_base_url: OpenAIBaseUrlOption = None,
+    openai_api: OpenAIApiOption = None,
     model: Annotated[
         str | None,
         typer.Option("--model", help="Override SYNEXTRA_CHAT_MODEL for this run."),
@@ -161,7 +192,12 @@ def research(
     """Run research only (collect evidence + citations + agent events)."""
 
     key = _require_api_key(openai_api_key)
-    client = Synextra(openai_api_key=key, model=model)
+    client = Synextra(
+        openai_api_key=key,
+        openai_base_url=openai_base_url,
+        openai_api=openai_api,
+        model=model,
+    )
 
     ingest_results: list[dict[str, object]] = []
     if documents:
@@ -219,6 +255,8 @@ def synthesize(
         str | None,
         typer.Option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key."),
     ] = None,
+    openai_base_url: OpenAIBaseUrlOption = None,
+    openai_api: OpenAIApiOption = None,
     model: Annotated[
         str | None,
         typer.Option("--model", help="Override SYNEXTRA_CHAT_MODEL for this run."),
@@ -238,7 +276,12 @@ def synthesize(
     """Explicit pipeline: research -> synthesize (prints the final answer)."""
 
     key = _require_api_key(openai_api_key)
-    client = Synextra(openai_api_key=key, model=model)
+    client = Synextra(
+        openai_api_key=key,
+        openai_base_url=openai_base_url,
+        openai_api=openai_api,
+        model=model,
+    )
 
     if documents:
         _ = _ingest_all(client, documents)
@@ -272,6 +315,8 @@ def chat(
         str | None,
         typer.Option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key."),
     ] = None,
+    openai_base_url: OpenAIBaseUrlOption = None,
+    openai_api: OpenAIApiOption = None,
     model: Annotated[
         str | None,
         typer.Option("--model", help="Override SYNEXTRA_CHAT_MODEL for this session."),
@@ -291,7 +336,12 @@ def chat(
     """Interactive chat loop (keeps the in-memory store for multiple queries)."""
 
     key = _require_api_key(openai_api_key)
-    client = Synextra(openai_api_key=key, model=model)
+    client = Synextra(
+        openai_api_key=key,
+        openai_base_url=openai_base_url,
+        openai_api=openai_api,
+        model=model,
+    )
 
     ingested = _ingest_all(client, documents)
     typer.echo(f"Ingested {len(ingested)} document(s).")

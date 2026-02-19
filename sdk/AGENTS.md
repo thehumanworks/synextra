@@ -6,6 +6,7 @@
 - The `synextra` package is the canonical source of all RAG ingestion, retrieval, and orchestration logic.
 - It must be self-contained: zero imports from `synextra_backend`. Run `grep -r "from synextra_backend\|import synextra_backend" sdk/src/` before any handoff — the result must be empty.
 - The SDK is designed to be pip-installable independently of the backend. Keep `sdk/pyproject.toml` dependencies accurate and complete (no implicit reliance on backend's environment).
+- OpenAI provider configuration must remain OpenAI-compatible: prefer `OPENAI_API_KEY` + optional `OPENAI_BASE_URL`, while supporting Azure aliases (`AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`) and explicit API-shape overrides (`SYNEXTRA_OPENAI_API`).
 
 ## Package Layout
 
@@ -50,6 +51,7 @@ If this fails with an import error referencing `synextra_backend`, there is a de
 - For `@function_tool` parameters: use typed Pydantic models, never `dict[str, Any]`. Strict schema mode rejects `additionalProperties`, and test with native structured payloads (not only JSON-encoded strings).
 - The orchestrator streaming protocol has three phases: (1) JSON-line events via `\x1d` separator, (2) answer tokens, (3) `\x1e` + metadata trailer. Preserve the wire format across refactors.
 - Judge review is optional: `RagChatRequest.review_enabled=true` activates the multi-iteration judge loop. Default is `false` for lower latency. Tests must cover both paths.
+- If adding support for OpenAI-compatible providers, verify both API modes (`responses` and `chat_completions`) can be configured cleanly without changing orchestrator call sites.
 
 ## Buck2 Targets
 
@@ -64,4 +66,6 @@ For SDK-only changes, run these per-workspace targets first for fast feedback, t
 
 - SDK architectural decisions go in `sdk/adrs/`.
 - Every ADR must include at least two alternatives considered and rejected, with rationale.
-- Existing ADRs: `0001-self-contained-sdk-and-cli-split.md`.
+- Existing ADRs:
+  - `0001-self-contained-sdk-and-cli-split.md`
+  - `0002-azure-openai-compatible-config.md`
