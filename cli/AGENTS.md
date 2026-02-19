@@ -48,6 +48,8 @@ If this fails, fix the import before running `buck2 run //:cli-test`.
 - Follow TDD: write or update tests before implementation.
 - `test_cli_smoke.py` covers only happy-path import and basic invocations. Expand it with failure-mode tests (e.g., missing API key, invalid file path, network error) when adding new CLI commands.
 - `synextra query` and `synextra chat` require at least one `--file` value and always run retrieval in `hybrid` mode. `synextra ingest` no longer exists as a standalone command.
+- OpenAI compatibility flags (`--openai-base-url`, `--openai-api`) must be wired consistently across `query`, `research`, `synthesize`, and `chat`, and tests should verify wiring into `Synextra(...)`.
+- API-key resolution should remain provider-friendly: accept `OPENAI_API_KEY` and `AZURE_OPENAI_API_KEY`.
 - Keep style consistent: `uv --directory cli run ruff check src/` and `uv --directory cli run ruff format src/`.
 - Keep types strict: `uv --directory cli run mypy src/`.
 
