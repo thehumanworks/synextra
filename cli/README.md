@@ -26,6 +26,7 @@ All commands (`query`, `research`, `synthesize`, `chat`) support:
 - `--openai-api-key` (or env `OPENAI_API_KEY`; fallback env `AZURE_OPENAI_API_KEY`)
 - `--openai-base-url` (env `OPENAI_BASE_URL` or `AZURE_OPENAI_BASE_URL`)
 - `--openai-api` (`responses|chat_completions`, env `SYNEXTRA_OPENAI_API`)
+- optional tracing guard for non-OpenAI keys: `OPENAI_AGENTS_DISABLE_TRACING=1`
 
 Azure example:
 

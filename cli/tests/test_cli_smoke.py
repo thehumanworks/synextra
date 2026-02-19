@@ -66,9 +66,7 @@ def test_query_help_includes_openai_compatibility_options() -> None:
     assert "--openai-api" in result.output
 
 
-def test_query_passes_openai_overrides(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_query_passes_openai_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     captured: dict[str, str | None] = {}
 
     @dataclass(frozen=True)

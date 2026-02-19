@@ -51,6 +51,8 @@ Synextra uses `openai-agents` with OpenAI-compatible configuration.
   - `AZURE_OPENAI_ENDPOINT` (auto-converted to `/openai/v1/`)
 - Optional API-shape override:
   - `SYNEXTRA_OPENAI_API` = `responses` or `chat_completions`
+- Optional tracing safeguard for non-OpenAI keys:
+  - `OPENAI_AGENTS_DISABLE_TRACING=1` (or configure a separate tracing export key)
 
 Azure note: when calling models through Azure OpenAI, the `model` value must be your Azure deployment name.
 

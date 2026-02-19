@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 import pytest
+
 import synextra.client as client_module
 from synextra import Synextra, SynextraConfigurationError
 

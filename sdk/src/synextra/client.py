@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
 from agents import set_default_openai_api
+
 from synextra.repositories.rag_document_repository import (
     ChunkRecord,
     InMemoryRagDocumentRepository,

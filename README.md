@@ -72,6 +72,8 @@ The SDK/CLI/backend use `openai-agents` with OpenAI-compatible configuration.
   - `AZURE_OPENAI_ENDPOINT` (auto-converted to `/openai/v1/` by SDK)
 - Optional API shape override:
   - `SYNEXTRA_OPENAI_API=responses|chat_completions`
+- Optional tracing safeguard for non-OpenAI keys:
+  - `OPENAI_AGENTS_DISABLE_TRACING=1` (or configure a dedicated tracing export key)
 
 Azure note: model identifiers must be deployment names.
 
