@@ -152,7 +152,7 @@ export const PIPELINE_NODE_DEFAULTS: Record<PipelineNodeType, () => PipelineNode
     promptTemplate: "{query}",
     reasoningEffort: "medium",
     reviewEnabled: false,
-    tools: [] as AgentToolType[],
+    tools: ["bm25_search", "read_document"] as AgentToolType[],
   }),
   output: () => ({ label: "Output", status: "idle" }),
 };
