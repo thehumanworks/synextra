@@ -1,0 +1,70 @@
+{
+  "task_id": "BE-2026-02-26-001",
+  "feature_branch": "current-working-tree",
+  "description": "Fix pipeline agent runs returning immediate scaffold-only output by integrating model-backed synthesis and explicit fallback observability.",
+  "bdd_flows": [
+    {
+      "given": "a pipeline agent run has evidence and a working model call path",
+      "when": "the agent endpoint executes",
+      "then": "the answer uses model-generated output instead of scaffold-only fallback text"
+    },
+    {
+      "given": "a pipeline agent run where model generation fails, returns empty output, or has no API key",
+      "when": "the agent endpoint executes",
+      "then": "the response explicitly marks fallback mode and includes an `agent_model_generation_failed` tool marker"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "name": "openai-agents-python",
+      "repo": "https://github.com/openai/openai-agents-python",
+      "usage": "Runner/Agent model invocation path used by pipeline runtime synthesis"
+    }
+  ],
+  "target_files": [
+    "sdk/src/synextra/services/pipeline_runtime.py",
+    "backend/tests/unit/api/test_pipeline_api.py",
+    "AGENTS.md"
+  ],
+  "if_when_then_tests": [
+    {
+      "if": "Runner.run returns a non-empty model output",
+      "when": "POST /v1/pipeline/agents/run is called",
+      "then": "response.answer equals the model output and no fallback marker is required"
+    },
+    {
+      "if": "Runner.run raises an exception",
+      "when": "POST /v1/pipeline/agents/run is called",
+      "then": "response.answer contains explicit fallback preface and tools_used includes agent_model_generation_failed"
+    },
+    {
+      "if": "OPENAI_API_KEY and AZURE_OPENAI_API_KEY are both missing",
+      "when": "POST /v1/pipeline/agents/run is called",
+      "then": "response indicates fallback mode and includes agent_model_generation_failed"
+    },
+    {
+      "if": "Runner.run returns an empty final output",
+      "when": "POST /v1/pipeline/agents/run is called",
+      "then": "response indicates fallback mode and includes agent_model_generation_failed"
+    }
+  ],
+  "status_lifecycle": [
+    "todo",
+    "review",
+    "done"
+  ],
+  "status": "done",
+  "required_subagent_review": true,
+  "execution_log": [
+    "Investigated user symptom and traced source string `Supporting evidence` to sdk/services/pipeline_runtime.py run_agent fallback scaffold path.",
+    "Added failing regression test proving endpoint should return model output when Runner.run succeeds.",
+    "Implemented model-backed synthesis in PipelineRuntime.run_agent using openai-agents Runner/Agent and reasoning settings.",
+    "Added explicit fallback observability (`agent_model_generation_failed` marker + visible fallback preface) for model error/no-key/empty-output paths.",
+    "Expanded backend API tests for model success, model exception fallback, missing-key fallback, and empty-model-output fallback branches.",
+    "Reproduced builder runtime failure with a real endpoint call and confirmed root runtime cause: OpenAI 429 insufficient_quota in model synthesis.",
+    "Improved fallback output to return an evidence-based summary plus explicit reason instead of scaffold-only `Supporting evidence` blocks.",
+    "Added model error classification markers (`agent_model_generation_failed:<reason>`) with regression tests for quota classification, long-message robustness, and false-positive avoidance.",
+    "Ran mandatory adversarial subagent review and targeted fix-verification review; integrated feedback.",
+    "Validated with workspace and repo gates, including buck2 run //:backend-test and buck2 run //:check."
+  ]
+}

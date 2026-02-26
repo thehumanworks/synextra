@@ -118,6 +118,10 @@ These classes of bug have appeared in this codebase. Reviews must explicitly che
 4. **Strict-schema tool parameters with `dict[str, Any]`** — `@function_tool` with `dict[str, Any]` args fails with `additionalProperties` errors when strict schema mode is active. Use typed Pydantic models.
 5. **Fix addressing symptom, not root cause** — Moving an in-memory guard to a TTL-decorated in-memory guard is not a cross-worker fix. Verification reviews must explicitly re-examine the root cause, not only the changed lines.
 6. **Pre-existing lint failures used to justify skipping checks** — Running workspace-wide lint/typecheck and encountering pre-existing failures is not a reason to skip checks on modified files. Run per-file or per-workspace targets; report results separately.
+7. **Identity collisions in cross-document dedupe** — When selecting top chunks across documents, never key by `chunk_id` alone; use `(document_id, chunk_id)` to avoid cross-document false matches.
+8. **BFF transport failure gaps** — Next.js API proxy routes that call backend services must handle thrown `fetch` transport errors (`try/catch`) and return structured 5xx payloads; do not rely only on non-OK `Response` handling.
+9. **Pipeline agent tool doc-scope drift** — Agent tool execution must be bound to run-local `document_ids` from upstream pipeline context; falling back to process-global `list_documents()[0]` can retrieve/cite the wrong document in multi-doc runs.
+10. **Silent pipeline model fallback** — Pipeline agent synthesis must not quietly return scaffold text (`Supporting evidence`) when model calls fail or keys are missing. Surface fallback state explicitly (for example `tools_used` marker + visible message) and add regression tests for model error, missing key, and empty model output branches.
 
 ## Self-Learning and Continuous Improvement
 - After completing a task that exposes a new failure mode, coding pattern, or architectural insight, update the relevant AGENTS.md section before handoff. AGENTS.md is operating memory for future sessions — stale memory causes repeated mistakes.

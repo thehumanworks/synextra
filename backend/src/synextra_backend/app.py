@@ -8,9 +8,11 @@ from synextra.repositories.rag_document_repository import (
     InMemoryRagDocumentRepository,
     RagDocumentRepository,
 )
+from synextra.services.pipeline_runtime import PipelineRuntime
 
 from synextra_backend.api import (
     build_health_router,
+    build_pipeline_router,
     build_rag_chat_router,
     build_rag_ingestion_router,
     build_rag_persistence_router,
@@ -46,11 +48,13 @@ def create_app(
     app.state.document_store = synextra.document_store
     app.state.embedded_store_persistence = synextra.embedded_store_persistence
     app.state.rag_orchestrator = synextra.orchestrator
+    app.state.pipeline_runtime = PipelineRuntime(synextra=synextra)
 
     app.include_router(build_health_router(service_name=normalized_service_name))
     app.include_router(build_rag_ingestion_router())
     app.include_router(build_rag_persistence_router())
     app.include_router(build_rag_chat_router())
+    app.include_router(build_pipeline_router())
     return app
 
 

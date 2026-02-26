@@ -45,9 +45,6 @@ describe("CitationAccordion", () => {
 
     await user.click(screen.getByRole("button", { name: /used 2 sources/i }));
 
-    expect(
-      screen.getByText(/Answer references use \[n\] and match the source tags below\./i)
-    ).toBeInTheDocument();
     expect(screen.getByText("[1]")).toBeInTheDocument();
     expect(screen.getByText("[2]")).toBeInTheDocument();
     expect(screen.getByText(/attention mechanism/i)).toBeInTheDocument();

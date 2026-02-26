@@ -75,6 +75,31 @@ body {
   filter: drop-shadow(0 0 24px rgba(0, 212, 255, 0.35));
 }
 
+/* Touch-friendly React Flow connection handles — 44px hit target */
+.react-flow__handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* Visual feedback when initiating a connection (source handle) */
+.react-flow__handle.connectingfrom {
+  background-color: #0ea5e9 !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 8px rgba(14, 165, 233, 0.5);
+}
+
+/* Visual feedback on valid target handles during connection */
+.react-flow__handle.connectionindicator {
+  background-color: #22d3ee !important;
+  border-color: #67e8f9 !important;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+}
+
 /* Safe-area bottom padding for iOS */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-bottom {

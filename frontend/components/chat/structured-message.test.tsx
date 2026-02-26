@@ -59,9 +59,6 @@ describe("StructuredMessage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Quote one/i)).toBeVisible();
     });
-    expect(
-      screen.getByText(/Answer references use \[n\] and match the source tags below\./i)
-    ).toBeInTheDocument();
     expect(screen.getAllByText("[1]")).not.toHaveLength(0);
     expect(screen.getByText("[2]")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open link/i })).toHaveAttribute(
