@@ -34,7 +34,18 @@ export const AgentNodeComponent = memo(function AgentNodeComponent({
       {data.toolsUsed && data.toolsUsed.length > 0 && (
         <div className="truncate">Used: {data.toolsUsed.join(", ")}</div>
       )}
-      {data.output && <div className="mt-1 line-clamp-4 text-stone-300">{data.output}</div>}
+      {data.status === "streaming" && (
+        <div className="mt-1 flex items-center gap-1.5 text-cyan-400">
+          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
+          Generating response…
+        </div>
+      )}
+      {data.status === "done" && data.output && (
+        <div className="mt-1 flex items-center gap-1.5 text-emerald-400">
+          <span>&#x2713;</span>
+          <span>Response ready</span>
+        </div>
+      )}
       {data.citations && data.citations.length > 0 && (
         <div>{data.citations.length} citations</div>
       )}

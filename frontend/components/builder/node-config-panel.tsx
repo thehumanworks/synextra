@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Streamdown } from "streamdown";
 
 import { usePipelineStore } from "@/lib/builder/store";
 import type { AgentToolType, AppNode, ParallelSearchQuery } from "@/lib/builder/types";
@@ -180,8 +181,10 @@ export function NodeConfigPanel({ onClose }: NodeConfigPanelProps) {
           {agentOutput ? (
             <div className="flex flex-col gap-2 rounded-md border border-stone-700 bg-stone-900/70 p-2">
               <div className="text-xs text-stone-400">Latest Agent Output</div>
-              <div className="line-clamp-3 whitespace-pre-wrap text-xs text-stone-300">
-                {agentOutput}
+              <div className="max-h-48 overflow-y-auto rounded bg-stone-900 p-2">
+                <Streamdown mode="static" className="text-xs" linkSafety={{ enabled: false }}>
+                  {agentOutput}
+                </Streamdown>
               </div>
               <div className="flex gap-2">
                 <button
@@ -245,12 +248,11 @@ export function NodeConfigPanel({ onClose }: NodeConfigPanelProps) {
                 {outputSaveError}
               </p>
             )}
-            <pre
-              data-testid="full-agent-output"
-              className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-4 text-sm text-stone-200"
-            >
-              {agentOutput}
-            </pre>
+            <div data-testid="full-agent-output" className="min-h-0 flex-1 overflow-auto p-4">
+              <Streamdown mode="static" linkSafety={{ enabled: false }}>
+                {agentOutput}
+              </Streamdown>
+            </div>
           </div>
         </div>
       )}
