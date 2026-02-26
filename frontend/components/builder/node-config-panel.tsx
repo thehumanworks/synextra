@@ -135,50 +135,6 @@ export function NodeConfigPanel({ onClose }: NodeConfigPanelProps) {
         />
       </label>
 
-      {nodeType === "bm25_search" && (
-        <>
-          <InputField
-            label="Query Template"
-            value={String(data.queryTemplate ?? "{query}")}
-            onChange={(value) => handleChange("queryTemplate", value)}
-          />
-          <NumberField
-            label="Top-K"
-            value={Number(data.topK ?? 8)}
-            min={1}
-            onChange={(value) => handleChange("topK", value)}
-          />
-        </>
-      )}
-
-      {nodeType === "read_document" && (
-        <>
-          <NumberField
-            label="Page"
-            value={Number(data.page ?? 0)}
-            min={0}
-            onChange={(value) => handleChange("page", value)}
-          />
-          <NumberField
-            label="Start Line"
-            value={Number(data.startLine ?? 1)}
-            min={1}
-            onChange={(value) => handleChange("startLine", value)}
-          />
-          <NumberField
-            label="End Line"
-            value={Number(data.endLine ?? 1)}
-            min={1}
-            onChange={(value) => handleChange("endLine", value)}
-          />
-          <InputField
-            label="Document ID (optional)"
-            value={String(data.documentId ?? "")}
-            onChange={(value) => handleChange("documentId", value)}
-          />
-        </>
-      )}
-
       {nodeType === "parallel_search" && (
         <>
           <label className="flex flex-col gap-1">
@@ -317,31 +273,6 @@ function InputField({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="nodrag rounded-md border border-stone-700 bg-stone-900 px-2 py-1 text-sm text-stone-200 focus:border-sky-500 focus:outline-none"
-      />
-    </label>
-  );
-}
-
-function NumberField({
-  label,
-  value,
-  min,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs text-stone-400">{label}</span>
-      <input
-        type="number"
-        value={Number.isFinite(value) ? value : min}
-        min={min}
-        onChange={(e) => onChange(Number(e.target.value))}
         className="nodrag rounded-md border border-stone-700 bg-stone-900 px-2 py-1 text-sm text-stone-200 focus:border-sky-500 focus:outline-none"
       />
     </label>

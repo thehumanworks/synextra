@@ -42,10 +42,6 @@ function miniMapNodeColor(node: AppNode): string {
   switch (node.type) {
     case "ingest":
       return "#6366f1";
-    case "bm25_search":
-      return "#0ea5e9";
-    case "read_document":
-      return "#22d3ee";
     case "parallel_search":
       return "#14b8a6";
     case "agent":

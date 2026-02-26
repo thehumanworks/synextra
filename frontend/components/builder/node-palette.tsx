@@ -17,18 +17,6 @@ const PALETTE_ITEMS: {
     description: "Upload and parse files",
   },
   {
-    type: "bm25_search",
-    label: "BM25 Search",
-    icon: "\u{1F50D}",
-    description: "Configurable lexical search",
-  },
-  {
-    type: "read_document",
-    label: "Read Document",
-    icon: "\u{1F4D6}",
-    description: "Read page or line ranges",
-  },
-  {
     type: "parallel_search",
     label: "Parallel Search",
     icon: "\u2699",
