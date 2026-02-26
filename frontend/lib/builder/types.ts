@@ -11,6 +11,7 @@ export const AGENT_TOOL_OPTIONS: { value: AgentToolType; label: string }[] = [
 ];
 
 export type PipelineNodeType =
+  | "input"
   | "ingest"
   | "bm25_search"
   | "read_document"
@@ -64,6 +65,13 @@ type BaseNodeData = {
   error?: string;
 };
 
+export type InputNodeData = BaseNodeData & {
+  promptText: string;
+  filename?: string;
+  documents?: PipelineDocumentRef[];
+  indexedChunkCount?: number;
+};
+
 export type IngestNodeData = BaseNodeData & {
   filename?: string;
   documents?: PipelineDocumentRef[];
@@ -108,6 +116,7 @@ export type OutputNodeData = BaseNodeData & {
   sourceNodeId?: string;
 };
 
+export type InputNode = Node<InputNodeData, "input">;
 export type IngestNode = Node<IngestNodeData, "ingest">;
 export type Bm25SearchNode = Node<Bm25SearchNodeData, "bm25_search">;
 export type ReadDocumentNode = Node<ReadDocumentNodeData, "read_document">;
@@ -116,6 +125,7 @@ export type AgentNode = Node<AgentNodeData, "agent">;
 export type OutputNode = Node<OutputNodeData, "output">;
 
 export type PipelineNode =
+  | InputNode
   | IngestNode
   | Bm25SearchNode
   | ReadDocumentNode
@@ -127,6 +137,7 @@ export type AppNode = BuiltInNode | PipelineNode;
 export type AppEdge = Edge;
 
 export const PIPELINE_NODE_DEFAULTS: Record<PipelineNodeType, () => PipelineNode["data"]> = {
+  input: () => ({ label: "Input", status: "idle", promptText: "" }),
   ingest: () => ({ label: "Ingest", status: "idle" }),
   bm25_search: () => ({
     label: "BM25 Search",

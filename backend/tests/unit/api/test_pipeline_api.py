@@ -513,6 +513,158 @@ async def test_pipeline_run_stream_agent_tools_can_retrieve_without_search_node(
 
 
 @pytest.mark.asyncio
+async def test_pipeline_run_stream_with_input_node_and_file(client: AsyncClient) -> None:
+    spec = {
+        "query": "Summarize the document",
+        "nodes": [
+            {
+                "id": "input-1",
+                "type": "input",
+                "label": "Input",
+                "config": {"prompt_text": "Summarize the document"},
+            },
+            {
+                "id": "agent-1",
+                "type": "agent",
+                "label": "Agent",
+                "config": {
+                    "prompt_template": "Use evidence for: {query}",
+                    "tools": ["bm25_search", "read_document"],
+                },
+            },
+            {"id": "out-1", "type": "output", "label": "Output", "config": {}},
+        ],
+        "edges": [
+            {"source": "input-1", "target": "agent-1"},
+            {"source": "agent-1", "target": "out-1"},
+        ],
+    }
+
+    response = await client.post(
+        "/v1/pipeline/runs/stream",
+        files=[
+            ("spec", (None, json.dumps(spec))),
+            (
+                "file:input-1",
+                ("notes.md", b"# Notes\n\nAttention mechanisms are powerful.\n", "text/markdown"),
+            ),
+        ],
+    )
+
+    assert response.status_code == 200
+    lines = [line for line in response.text.splitlines() if line.strip()]
+    events = [json.loads(line) for line in lines]
+
+    assert events[0]["event"] == "run_started"
+
+    input_completed = next(
+        event
+        for event in events
+        if event["event"] == "node_completed" and event["node_id"] == "input-1"
+    )
+    assert input_completed["output"]["prompt_text"] == "Summarize the document"
+    assert len(input_completed["output"]["documents"]) == 1
+
+    assert any(
+        event["event"] == "node_completed" and event["node_id"] == "out-1" for event in events
+    )
+    assert events[-1]["event"] == "run_completed"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_run_stream_with_input_node_prompt_only(client: AsyncClient) -> None:
+    spec = {
+        "query": "What is attention?",
+        "nodes": [
+            {
+                "id": "input-1",
+                "type": "input",
+                "label": "Input",
+                "config": {"prompt_text": "What is attention?"},
+            },
+            {
+                "id": "agent-1",
+                "type": "agent",
+                "label": "Agent",
+                "config": {"prompt_template": "{query}"},
+            },
+            {"id": "out-1", "type": "output", "label": "Output", "config": {}},
+        ],
+        "edges": [
+            {"source": "input-1", "target": "agent-1"},
+            {"source": "agent-1", "target": "out-1"},
+        ],
+    }
+
+    response = await client.post(
+        "/v1/pipeline/runs/stream",
+        files=[("spec", (None, json.dumps(spec)))],
+    )
+
+    assert response.status_code == 200
+    lines = [line for line in response.text.splitlines() if line.strip()]
+    events = [json.loads(line) for line in lines]
+
+    assert events[0]["event"] == "run_started"
+
+    input_completed = next(
+        event
+        for event in events
+        if event["event"] == "node_completed" and event["node_id"] == "input-1"
+    )
+    assert input_completed["output"]["prompt_text"] == "What is attention?"
+    assert "documents" not in input_completed["output"]
+
+    assert events[-1]["event"] == "run_completed"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_pause_returns_404_for_unknown_run(client: AsyncClient) -> None:
+    response = await client.post("/v1/pipeline/runs/nonexistent-id/pause")
+    assert response.status_code == 404
+    body = response.json()
+    assert body["error"]["code"] == "run_not_found"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_resume_returns_404_for_unknown_run(client: AsyncClient) -> None:
+    response = await client.post("/v1/pipeline/runs/nonexistent-id/resume")
+    assert response.status_code == 404
+    body = response.json()
+    assert body["error"]["code"] == "run_not_found"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_run_stream_emits_run_id_in_started_event(client: AsyncClient) -> None:
+    spec = {
+        "query": "Test run id",
+        "nodes": [
+            {
+                "id": "input-1",
+                "type": "input",
+                "label": "Input",
+                "config": {"prompt_text": "Test run id"},
+            },
+            {"id": "out-1", "type": "output", "label": "Output", "config": {}},
+        ],
+        "edges": [{"source": "input-1", "target": "out-1"}],
+    }
+
+    response = await client.post(
+        "/v1/pipeline/runs/stream",
+        files=[("spec", (None, json.dumps(spec)))],
+    )
+    assert response.status_code == 200
+    lines = [line for line in response.text.splitlines() if line.strip()]
+    events = [json.loads(line) for line in lines]
+
+    started = events[0]
+    assert started["event"] == "run_started"
+    assert isinstance(started["run_id"], str)
+    assert len(started["run_id"]) > 0
+
+
+@pytest.mark.asyncio
 async def test_pipeline_run_stream_rejects_invalid_spec(client: AsyncClient) -> None:
     response = await client.post("/v1/pipeline/runs/stream", files=[("spec", (None, "{"))])
     assert response.status_code == 400

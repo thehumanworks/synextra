@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from typing import cast
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -33,6 +35,7 @@ PIPELINE_RUNTIME_DEP = Depends(_get_pipeline_runtime)
 
 def build_pipeline_router() -> APIRouter:
     router = APIRouter(prefix="/v1/pipeline", tags=["pipeline"])
+    active_runs: dict[str, asyncio.Event] = {}
 
     @router.post(
         "/tools/bm25-search",
@@ -140,9 +143,22 @@ def build_pipeline_router() -> APIRouter:
                 file_bytes,
             )
 
+        run_id = uuid4().hex
+        pause_event = asyncio.Event()
+        pause_event.set()
+        active_runs[run_id] = pause_event
+
         async def stream_events() -> AsyncIterator[str]:
-            async for event in runtime.run_stream(spec=spec, files_by_node=files_by_node):
-                yield event.model_dump_json() + "\n"
+            try:
+                async for event in runtime.run_stream(
+                    spec=spec,
+                    files_by_node=files_by_node,
+                    run_id=run_id,
+                    pause_event=pause_event,
+                ):
+                    yield event.model_dump_json() + "\n"
+            finally:
+                active_runs.pop(run_id, None)
 
         return StreamingResponse(
             stream_events(),
@@ -152,5 +168,43 @@ def build_pipeline_router() -> APIRouter:
                 "x-accel-buffering": "no",
             },
         )
+
+    @router.post(
+        "/runs/{run_id}/pause",
+        response_model=None,
+        status_code=200,
+        responses={404: {"model": ApiErrorResponse}},
+        summary="Pause a running pipeline between nodes",
+    )
+    async def pause_run(run_id: str) -> JSONResponse:
+        event = active_runs.get(run_id)
+        if event is None:
+            payload = error_response(
+                code="run_not_found",
+                message=f"No active run with id {run_id}",
+                recoverable=False,
+            )
+            return JSONResponse(status_code=404, content=payload.model_dump())
+        event.clear()
+        return JSONResponse(status_code=200, content={"status": "paused", "run_id": run_id})
+
+    @router.post(
+        "/runs/{run_id}/resume",
+        response_model=None,
+        status_code=200,
+        responses={404: {"model": ApiErrorResponse}},
+        summary="Resume a paused pipeline run",
+    )
+    async def resume_run(run_id: str) -> JSONResponse:
+        event = active_runs.get(run_id)
+        if event is None:
+            payload = error_response(
+                code="run_not_found",
+                message=f"No active run with id {run_id}",
+                recoverable=False,
+            )
+            return JSONResponse(status_code=404, content=payload.model_dump())
+        event.set()
+        return JSONResponse(status_code=200, content={"status": "resumed", "run_id": run_id})
 
     return router

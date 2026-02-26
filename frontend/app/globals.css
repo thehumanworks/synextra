@@ -75,6 +75,16 @@ body {
   filter: drop-shadow(0 0 24px rgba(0, 212, 255, 0.35));
 }
 
+/* Strip built-in node type styles — our pipeline uses only custom components */
+.react-flow__node-input,
+.react-flow__node-output,
+.react-flow__node-default {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  width: auto !important;
+}
+
 /* Touch-friendly React Flow connection handles — 44px hit target */
 .react-flow__handle::before {
   content: '';

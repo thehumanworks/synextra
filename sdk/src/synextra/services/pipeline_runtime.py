@@ -20,6 +20,7 @@ from synextra.schemas.pipeline import (
     AgentNodeSpec,
     Bm25SearchNodeSpec,
     IngestNodeSpec,
+    InputNodeSpec,
     OutputNodeSpec,
     ParallelReadDocumentQuery,
     ParallelSearchNodeSpec,
@@ -39,6 +40,8 @@ from synextra.schemas.pipeline import (
     PipelineRunCompletedEvent,
     PipelineRunEvent,
     PipelineRunFailedEvent,
+    PipelineRunPausedEvent,
+    PipelineRunResumedEvent,
     PipelineRunSpec,
     PipelineRunStartedEvent,
     ReadDocumentNodeSpec,
@@ -547,8 +550,11 @@ class PipelineRuntime:
         *,
         spec: PipelineRunSpec,
         files_by_node: dict[str, tuple[str, str | None, bytes]],
+        run_id: str | None = None,
+        pause_event: asyncio.Event | None = None,
     ) -> AsyncIterator[PipelineRunEvent]:
-        run_id = uuid4().hex
+        if run_id is None:
+            run_id = uuid4().hex
         timestamp = _now_iso()
         yield PipelineRunStartedEvent(run_id=run_id, timestamp=timestamp)
 
@@ -567,6 +573,10 @@ class PipelineRuntime:
         incoming = self._incoming_sources(spec.edges)
 
         for node in ordered_nodes:
+            if pause_event is not None and not pause_event.is_set():
+                yield PipelineRunPausedEvent(run_id=run_id, timestamp=_now_iso())
+                await pause_event.wait()
+                yield PipelineRunResumedEvent(run_id=run_id, timestamp=_now_iso())
             yield PipelineNodeStartedEvent(
                 run_id=run_id,
                 node_id=node.id,
@@ -642,6 +652,24 @@ class PipelineRuntime:
         files_by_node: dict[str, tuple[str, str | None, bytes]],
     ) -> dict[str, Any]:
         upstream = [outputs[source_id] for source_id in incoming_sources if source_id in outputs]
+
+        if isinstance(node, InputNodeSpec):
+            result: dict[str, Any] = {"prompt_text": node.config.prompt_text}
+            file_info = files_by_node.get(node.id)
+            if file_info is not None:
+                filename, content_type, payload = file_info
+                ingest = self._synextra.ingest(
+                    payload, filename=filename, content_type=content_type
+                )
+                doc = PipelineDocumentRef(
+                    document_id=ingest.document_id,
+                    filename=ingest.filename,
+                    page_count=ingest.page_count,
+                    chunk_count=ingest.chunk_count,
+                )
+                result["documents"] = [doc.model_dump()]
+                result["indexed_chunk_count"] = ingest.indexed_chunk_count
+            return result
 
         if isinstance(node, IngestNodeSpec):
             file_info = files_by_node.get(node.id)

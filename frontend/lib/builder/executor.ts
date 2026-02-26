@@ -11,7 +11,9 @@ type PipelineEvent = {
     | "node_completed"
     | "node_failed"
     | "run_completed"
-    | "run_failed";
+    | "run_failed"
+    | "run_paused"
+    | "run_resumed";
   run_id: string;
   node_id?: string;
   node_type?: PipelineNodeType;
@@ -20,12 +22,32 @@ type PipelineEvent = {
   error?: string;
 };
 
-function buildRunSpec(nodes: AppNode[], edges: AppEdge[], query: string): Record<string, unknown> {
+function resolveQuery(nodes: AppNode[]): string {
+  for (const node of nodes) {
+    if (node.type === "input") {
+      const data = node.data as Record<string, unknown>;
+      const text = typeof data.promptText === "string" ? data.promptText.trim() : "";
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
+function buildRunSpec(nodes: AppNode[], edges: AppEdge[]): Record<string, unknown> {
+  const query = resolveQuery(nodes);
   return {
     query,
     nodes: nodes.map((node) => {
       const data = node.data as Record<string, unknown>;
       const label = typeof data.label === "string" ? data.label : node.type ?? "Node";
+      if (node.type === "input") {
+        return {
+          id: node.id,
+          type: "input",
+          label,
+          config: { prompt_text: String(data.promptText ?? "") },
+        };
+      }
       if (node.type === "ingest") {
         return { id: node.id, type: "ingest", label, config: {} };
       }
@@ -107,6 +129,24 @@ function applyNodeCompleted(
 ): void {
   if (!event.node_id || !event.node_type) return;
   const output = event.output ?? {};
+  if (event.node_type === "input") {
+    const patch: Record<string, unknown> = { status: "done" };
+    const documents = Array.isArray(output.documents)
+      ? (output.documents as Record<string, unknown>[])
+      : undefined;
+    if (documents) {
+      patch.documents = documents;
+      const first = documents[0];
+      if (first && typeof first.filename === "string") {
+        patch.filename = first.filename;
+      }
+    }
+    if (typeof output.indexed_chunk_count === "number") {
+      patch.indexedChunkCount = output.indexed_chunk_count;
+    }
+    updateNodeData(event.node_id, patch);
+    return;
+  }
   if (event.node_type === "ingest") {
     const documents = Array.isArray(output.documents)
       ? (output.documents as Record<string, unknown>[])
@@ -183,10 +223,15 @@ function applyNodeCompleted(
 export async function executePipeline(
   nodes: AppNode[],
   edges: AppEdge[],
-  query: string,
   updateNodeData: NodeUpdater,
   signal: AbortSignal,
+  onRunStarted?: (runId: string) => void,
 ): Promise<void> {
+  const query = resolveQuery(nodes);
+  if (!query) {
+    throw new Error("Add an Input node with a prompt to run the pipeline");
+  }
+
   for (const node of nodes) {
     const reset: Record<string, unknown> = { status: "idle", error: undefined };
     if (node.type === "agent" || node.type === "output") {
@@ -196,16 +241,19 @@ export async function executePipeline(
   }
 
   const form = new FormData();
-  form.append("spec", JSON.stringify(buildRunSpec(nodes, edges, query)));
+  form.append("spec", JSON.stringify(buildRunSpec(nodes, edges)));
 
   for (const node of nodes) {
-    if (node.type !== "ingest") continue;
-    const file = getNodeFile(node.id);
-    if (!file) {
-      updateNodeData(node.id, { status: "error", error: "No file selected" });
-      throw new Error(`Ingest node ${node.id} is missing a file`);
+    if (node.type === "input" || node.type === "ingest") {
+      const file = getNodeFile(node.id);
+      if (node.type === "ingest" && !file) {
+        updateNodeData(node.id, { status: "error", error: "No file selected" });
+        throw new Error(`Ingest node ${node.id} is missing a file`);
+      }
+      if (file) {
+        form.append(`file:${node.id}`, file, file.name);
+      }
     }
-    form.append(`file:${node.id}`, file, file.name);
   }
 
   const response = await fetch("/api/pipeline/run", {
@@ -239,6 +287,15 @@ export async function executePipeline(
         const trimmed = line.trim();
         if (!trimmed) continue;
         const event = JSON.parse(trimmed) as PipelineEvent;
+
+        if (event.event === "run_started") {
+          onRunStarted?.(event.run_id);
+          continue;
+        }
+
+        if (event.event === "run_paused" || event.event === "run_resumed") {
+          continue;
+        }
 
         if (event.event === "node_started" && event.node_id) {
           updateNodeData(event.node_id, { status: "running", error: undefined });

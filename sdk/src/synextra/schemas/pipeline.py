@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh"]
 AgentToolType = Literal["bm25_search", "read_document", "parallel_search"]
 PipelineNodeType = Literal[
+    "input",
     "ingest",
     "bm25_search",
     "read_document",
@@ -55,6 +56,12 @@ class PipelineAgentOutputEnvelope(BaseModel):
     tools_used: list[str] = Field(default_factory=list)
     evidence: list[PipelineEvidenceChunk] = Field(default_factory=list)
     upstream_answers: list[str] = Field(default_factory=list)
+
+
+class InputNodeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    prompt_text: str = Field(..., min_length=1)
 
 
 class IngestNodeConfig(BaseModel):
@@ -123,6 +130,15 @@ class OutputNodeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class InputNodeSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    type: Literal["input"] = "input"
+    label: str = "Input"
+    config: InputNodeConfig
+
+
 class IngestNodeSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -178,7 +194,8 @@ class OutputNodeSpec(BaseModel):
 
 
 PipelineNodeSpec = Annotated[
-    IngestNodeSpec
+    InputNodeSpec
+    | IngestNodeSpec
     | Bm25SearchNodeSpec
     | ReadDocumentNodeSpec
     | ParallelSearchNodeSpec
@@ -316,6 +333,22 @@ class PipelineRunFailedEvent(BaseModel):
     timestamp: str
 
 
+class PipelineRunPausedEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["run_paused"] = "run_paused"
+    run_id: str
+    timestamp: str
+
+
+class PipelineRunResumedEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["run_resumed"] = "run_resumed"
+    run_id: str
+    timestamp: str
+
+
 PipelineRunEvent = (
     PipelineRunStartedEvent
     | PipelineNodeStartedEvent
@@ -324,4 +357,6 @@ PipelineRunEvent = (
     | PipelineNodeFailedEvent
     | PipelineRunCompletedEvent
     | PipelineRunFailedEvent
+    | PipelineRunPausedEvent
+    | PipelineRunResumedEvent
 )

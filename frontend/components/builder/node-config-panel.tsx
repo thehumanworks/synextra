@@ -136,6 +136,26 @@ export function NodeConfigPanel({ onClose }: NodeConfigPanelProps) {
         />
       </label>
 
+      {nodeType === "input" && (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-stone-400">Prompt Text</span>
+            <textarea
+              value={String(data.promptText ?? "")}
+              onChange={(e) => handleChange("promptText", e.target.value)}
+              placeholder="Enter your prompt..."
+              rows={4}
+              className="nodrag rounded-md border border-stone-700 bg-stone-900 px-2 py-1 text-xs text-stone-200 placeholder:text-stone-600 focus:border-sky-500 focus:outline-none"
+            />
+          </label>
+          <div className="rounded-md border border-stone-800 bg-stone-900/50 px-2 py-1 text-xs text-stone-500">
+            {data.filename
+              ? `File: ${String(data.filename)}`
+              : "No file attached (optional)"}
+          </div>
+        </>
+      )}
+
       {nodeType === "parallel_search" && (
         <>
           <label className="flex flex-col gap-1">

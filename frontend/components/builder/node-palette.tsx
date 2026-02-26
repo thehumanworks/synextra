@@ -11,10 +11,10 @@ const PALETTE_ITEMS: {
   description: string;
 }[] = [
   {
-    type: "ingest",
-    label: "Ingest",
-    icon: "\u{1F4C4}",
-    description: "Upload and parse files",
+    type: "input",
+    label: "Input",
+    icon: ">_",
+    description: "Define prompt and upload files",
   },
   {
     type: "parallel_search",

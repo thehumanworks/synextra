@@ -20,11 +20,11 @@ import { createDagValidator } from "@/lib/builder/dag-validation";
 import { getLayoutedElements } from "@/lib/builder/layout";
 import { usePipelineStore } from "@/lib/builder/store";
 import { PIPELINE_NODE_DEFAULTS, type AppNode, type PipelineNodeType } from "@/lib/builder/types";
+import { usePipelineRun } from "@/lib/builder/use-pipeline-run";
 import { edgeTypes } from "./edges";
 import { NodeConfigPanel } from "./node-config-panel";
 import { NodePalette } from "./node-palette";
 import { nodeTypes } from "./nodes";
-import { RunToolbar } from "./run-toolbar";
 
 let nodeIdCounter = 0;
 
@@ -40,6 +40,8 @@ const defaultEdgeOptions = {
 
 function miniMapNodeColor(node: AppNode): string {
   switch (node.type) {
+    case "input":
+      return "#8b5cf6";
     case "ingest":
       return "#6366f1";
     case "parallel_search":
@@ -67,6 +69,8 @@ function PipelineBuilderInner() {
   const toJSON = usePipelineStore((s) => s.toJSON);
   const fromJSON = usePipelineStore((s) => s.fromJSON);
 
+  const { runState, error, play, pause, stop, dismissError } = usePipelineRun();
+
   const [showPaletteSheet, setShowPaletteSheet] = useState(false);
   const [showConfigSheet, setShowConfigSheet] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -81,6 +85,13 @@ function PipelineBuilderInner() {
     media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
   }, []);
+
+  // Auto-dismiss error toast after 5 seconds
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(dismissError, 5000);
+    return () => clearTimeout(timer);
+  }, [error, dismissError]);
 
   const addNodeAt = useCallback(
     (nodeType: PipelineNodeType, x?: number, y?: number) => {
@@ -168,13 +179,7 @@ function PipelineBuilderInner() {
   }, [fitView, fromJSON]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <RunToolbar
-        onOpenPalette={() => setShowPaletteSheet(true)}
-        onOpenConfig={() => setShowConfigSheet(true)}
-        hasSelection={Boolean(selectedNodeId)}
-      />
-
+    <div className="flex h-full min-h-0 flex-col">
       <div className="grid min-h-0 flex-1 overflow-hidden grid-cols-1 gap-3 lg:grid-cols-[14rem_minmax(0,1fr)_18rem]">
         <div className="hidden min-h-0 lg:block">
           <NodePalette onAddNode={(type) => addNodeAt(type)} />
@@ -199,6 +204,7 @@ function PipelineBuilderInner() {
             connectOnClick
             connectionRadius={24}
             fitView
+            fitViewOptions={{ maxZoom: 0.8, padding: 0.3 }}
             colorMode="dark"
             deleteKeyCode={["Backspace", "Delete"]}
             snapToGrid
@@ -225,7 +231,53 @@ function PipelineBuilderInner() {
             )}
 
             <Panel position="top-right">
-              <div className="flex flex-wrap justify-end gap-1.5">
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                {runState === "idle" && (
+                  <RunPanelButton
+                    onClick={() => void play()}
+                    title="Run"
+                    className="text-emerald-400 hover:bg-emerald-900/30"
+                  >
+                    &#9654;
+                  </RunPanelButton>
+                )}
+                {runState === "running" && (
+                  <>
+                    <RunPanelButton
+                      onClick={() => void pause()}
+                      title="Pause"
+                      className="text-amber-400 hover:bg-amber-900/30"
+                    >
+                      &#9208;
+                    </RunPanelButton>
+                    <RunPanelButton
+                      onClick={stop}
+                      title="Stop"
+                      className="text-red-400 hover:bg-red-900/30"
+                    >
+                      &#9209;
+                    </RunPanelButton>
+                  </>
+                )}
+                {runState === "paused" && (
+                  <>
+                    <RunPanelButton
+                      onClick={() => void play()}
+                      title="Resume"
+                      className="text-emerald-400 hover:bg-emerald-900/30"
+                    >
+                      &#9654;
+                    </RunPanelButton>
+                    <RunPanelButton
+                      onClick={stop}
+                      title="Stop"
+                      className="text-red-400 hover:bg-red-900/30"
+                    >
+                      &#9209;
+                    </RunPanelButton>
+                  </>
+                )}
+                <div className="h-4 w-px bg-stone-700" />
                 <PanelButton onClick={() => onLayout("LR")}>Layout &rarr;</PanelButton>
                 <PanelButton onClick={() => onLayout("TB")}>Layout &darr;</PanelButton>
                 <PanelButton onClick={undo}>Undo</PanelButton>
@@ -235,6 +287,18 @@ function PipelineBuilderInner() {
               </div>
             </Panel>
           </ReactFlow>
+
+          {error && (
+            <div className="absolute left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-red-800 bg-red-950/90 px-4 py-2 text-sm text-red-300 shadow-lg backdrop-blur">
+              <p>{error}</p>
+              <button
+                onClick={dismissError}
+                className="ml-1 text-red-500 hover:text-red-300"
+              >
+                &#x2715;
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="hidden min-h-0 lg:block">
@@ -246,6 +310,23 @@ function PipelineBuilderInner() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Mobile bottom bar */}
+      <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 gap-2 rounded-lg border border-stone-800 bg-stone-950/90 p-2 backdrop-blur lg:hidden">
+        <button
+          onClick={() => setShowPaletteSheet(true)}
+          className="rounded-md border border-stone-700 bg-stone-900 px-2.5 py-1 text-xs text-stone-300 hover:bg-stone-800"
+        >
+          Nodes
+        </button>
+        <button
+          onClick={() => setShowConfigSheet(true)}
+          disabled={!selectedNodeId}
+          className="rounded-md border border-stone-700 bg-stone-900 px-2.5 py-1 text-xs text-stone-300 hover:bg-stone-800 disabled:opacity-50"
+        >
+          Config
+        </button>
       </div>
 
       {showPaletteSheet && (
@@ -279,6 +360,28 @@ function PanelButton({
     <button
       onClick={onClick}
       className="rounded-md border border-stone-700 bg-stone-900 px-2.5 py-1 text-xs text-stone-300 hover:bg-stone-800"
+    >
+      {children}
+    </button>
+  );
+}
+
+function RunPanelButton({
+  onClick,
+  title,
+  className,
+  children,
+}: {
+  onClick: () => void;
+  title: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`rounded-md border border-stone-700 bg-stone-900 px-2 py-1 text-sm leading-none ${className}`}
     >
       {children}
     </button>
