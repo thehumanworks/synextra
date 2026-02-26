@@ -179,12 +179,12 @@ function PipelineBuilderInner() {
         hasSelection={Boolean(selectedNodeId)}
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[14rem_minmax(0,1fr)_18rem]">
+      <div className="grid min-h-0 flex-1 overflow-hidden grid-cols-1 gap-3 lg:grid-cols-[14rem_minmax(0,1fr)_18rem]">
         <div className="hidden min-h-0 lg:block">
           <NodePalette onAddNode={(type) => addNodeAt(type)} />
         </div>
 
-        <div ref={wrapperRef} className="relative min-h-0 rounded-lg border border-stone-800">
+        <div ref={wrapperRef} className="relative h-full min-h-0 rounded-lg border border-stone-800">
           <ReactFlow
             nodes={nodes}
             edges={edges}
