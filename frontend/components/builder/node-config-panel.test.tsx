@@ -6,6 +6,10 @@ import type { AppNode } from "@/lib/builder/types";
 import { usePipelineStore } from "@/lib/builder/store";
 import { NodeConfigPanel } from "./node-config-panel";
 
+vi.mock("streamdown", () => ({
+  Streamdown: ({ children }: { children: string }) => <div>{children}</div>,
+}));
+
 function makeAgentNode(id: string, output: string): AppNode {
   return {
     id,
@@ -74,7 +78,9 @@ describe("NodeConfigPanel agent output tools", () => {
     expect(
       screen.getByRole("dialog", { name: "Full Agent Output" }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("full-agent-output").textContent).toBe(output);
+    expect(screen.getByTestId("full-agent-output")).toHaveTextContent(output, {
+      normalizeWhitespace: false,
+    });
   });
 
   it("downloads full agent output to a text file", async () => {
