@@ -206,6 +206,34 @@ export function NodeConfigPanel({ onClose }: NodeConfigPanelProps) {
             value={String(data.promptTemplate ?? "{query}")}
             onChange={(value) => handleChange("promptTemplate", value)}
           />
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-stone-400">System Instructions</span>
+            <textarea
+              value={String(data.systemInstructions ?? "")}
+              onChange={(e) => handleChange("systemInstructions", e.target.value)}
+              placeholder="Custom instructions for this agent... (leave empty for default)"
+              rows={4}
+              className="nodrag rounded-md border border-stone-700 bg-stone-900 px-2 py-1 text-xs text-stone-200 placeholder:text-stone-600 focus:border-sky-500 focus:outline-none"
+            />
+          </label>
+          <AgentPresetManager
+            currentConfig={{
+              label: String(data.label ?? "Agent"),
+              promptTemplate: String(data.promptTemplate ?? "{query}"),
+              reasoningEffort: String(data.reasoningEffort ?? "medium"),
+              reviewEnabled: Boolean(data.reviewEnabled),
+              tools: (data.tools as AgentToolType[] | undefined) ?? [],
+              systemInstructions: String(data.systemInstructions ?? ""),
+            }}
+            onLoadPreset={(preset) => {
+              handleChange("label", preset.label);
+              handleChange("promptTemplate", preset.promptTemplate);
+              handleChange("reasoningEffort", preset.reasoningEffort);
+              handleChange("reviewEnabled", preset.reviewEnabled);
+              handleChange("tools", preset.tools);
+              handleChange("systemInstructions", preset.systemInstructions);
+            }}
+          />
           <SelectField
             label="Reasoning Effort"
             value={String(data.reasoningEffort ?? "medium")}
@@ -396,6 +424,116 @@ function CheckboxField({
       />
       <span className="text-xs text-stone-400">{label}</span>
     </label>
+  );
+}
+
+type AgentPreset = {
+  id: string;
+  label: string;
+  promptTemplate: string;
+  reasoningEffort: string;
+  reviewEnabled: boolean;
+  tools: AgentToolType[];
+  systemInstructions: string;
+};
+
+const PRESETS_STORAGE_KEY = "synextra-agent-presets";
+
+function loadPresets(): AgentPreset[] {
+  try {
+    const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as AgentPreset[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePresets(presets: AgentPreset[]) {
+  localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+}
+
+function AgentPresetManager({
+  currentConfig,
+  onLoadPreset,
+}: {
+  currentConfig: Omit<AgentPreset, "id">;
+  onLoadPreset: (preset: AgentPreset) => void;
+}) {
+  const [presets, setPresets] = useState<AgentPreset[]>(() => loadPresets());
+  const [showSave, setShowSave] = useState(false);
+  const [presetName, setPresetName] = useState("");
+
+  function handleSave() {
+    if (!presetName.trim()) return;
+    const newPreset: AgentPreset = {
+      id: `preset-${Date.now()}`,
+      ...currentConfig,
+      label: presetName.trim(),
+    };
+    const updated = [...presets, newPreset];
+    setPresets(updated);
+    savePresets(updated);
+    setPresetName("");
+    setShowSave(false);
+  }
+
+  function handleDelete(id: string) {
+    const updated = presets.filter((p) => p.id !== id);
+    setPresets(updated);
+    savePresets(updated);
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-stone-800 bg-stone-900/50 p-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-stone-400">Agent Presets</span>
+        <button
+          onClick={() => setShowSave(!showSave)}
+          className="text-xs text-sky-400 hover:text-sky-300"
+        >
+          {showSave ? "Cancel" : "Save Current"}
+        </button>
+      </div>
+      {showSave && (
+        <div className="flex gap-1.5">
+          <input
+            value={presetName}
+            onChange={(e) => setPresetName(e.target.value)}
+            placeholder="Preset name..."
+            className="flex-1 rounded border border-stone-700 bg-stone-900 px-2 py-1 text-xs text-stone-200 placeholder:text-stone-600 focus:border-sky-500 focus:outline-none"
+            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+          />
+          <button
+            onClick={handleSave}
+            className="rounded border border-stone-700 bg-stone-800 px-2 py-1 text-xs text-stone-200 hover:bg-stone-700"
+          >
+            Save
+          </button>
+        </div>
+      )}
+      {presets.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          {presets.map((preset) => (
+            <div key={preset.id} className="flex items-center gap-1.5">
+              <button
+                onClick={() => onLoadPreset(preset)}
+                className="flex-1 truncate rounded border border-stone-700 bg-stone-900 px-2 py-1 text-left text-xs text-stone-300 hover:bg-stone-800"
+              >
+                {preset.label}
+              </button>
+              <button
+                onClick={() => handleDelete(preset.id)}
+                className="rounded px-1.5 py-1 text-xs text-stone-500 hover:text-red-400"
+              >
+                &#x2715;
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-stone-600">No saved presets yet.</p>
+      )}
+    </div>
   );
 }
 

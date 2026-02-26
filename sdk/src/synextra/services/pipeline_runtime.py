@@ -307,6 +307,7 @@ class PipelineRuntime:
             reasoning_effort=request.reasoning_effort,
             upstream_answers=upstream_answers,
             evidence=evidence,
+            system_instructions=request.system_instructions,
         )
         if model_answer:
             answer = model_answer
@@ -427,6 +428,7 @@ class PipelineRuntime:
         reasoning_effort: ReasoningEffort,
         upstream_answers: list[str],
         evidence: list[PipelineEvidenceChunk],
+        system_instructions: str | None = None,
     ) -> tuple[str, str | None]:
         if not _has_configured_openai_key():
             return "", "missing_openai_api_key"
@@ -437,14 +439,16 @@ class PipelineRuntime:
             evidence=evidence,
         )
 
+        default_instructions = (
+            "You are a synthesis assistant. "
+            "Use only the supplied evidence and upstream results. "
+            "Do not invent facts. If evidence is insufficient, say so clearly."
+        )
+
         async def _run() -> str:
             agent: Agent = Agent(
                 name="synextra_pipeline_agent",
-                instructions=(
-                    "You are a synthesis assistant. "
-                    "Use only the supplied evidence and upstream results. "
-                    "Do not invent facts. If evidence is insufficient, say so clearly."
-                ),
+                instructions=system_instructions or default_instructions,
                 model=_pipeline_chat_model(),
                 model_settings=ModelSettings(
                     reasoning=Reasoning(effort=reasoning_effort, summary="concise"),
@@ -713,6 +717,7 @@ class PipelineRuntime:
                 document_ids=document_ids,
                 evidence=evidence,
                 upstream_outputs=upstream_outputs,
+                system_instructions=node.config.system_instructions,
             )
             envelope = self.run_agent(agent_request)
             return {

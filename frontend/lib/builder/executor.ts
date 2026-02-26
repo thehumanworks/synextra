@@ -82,6 +82,10 @@ function buildRunSpec(nodes: AppNode[], edges: AppEdge[], query: string): Record
             reasoning_effort: String(data.reasoningEffort ?? "medium"),
             review_enabled: Boolean(data.reviewEnabled),
             tools: Array.isArray(data.tools) ? (data.tools as AgentToolType[]) : [],
+            system_instructions:
+              typeof data.systemInstructions === "string" && data.systemInstructions.trim()
+                ? data.systemInstructions
+                : undefined,
           },
         };
       }

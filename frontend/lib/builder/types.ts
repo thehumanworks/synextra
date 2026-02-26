@@ -96,6 +96,7 @@ export type AgentNodeData = BaseNodeData & {
   reasoningEffort: ReasoningEffort;
   reviewEnabled: boolean;
   tools: AgentToolType[];
+  systemInstructions?: string;
   output?: string;
   citations?: PipelineCitation[];
   toolsUsed?: string[];

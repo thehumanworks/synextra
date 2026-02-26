@@ -116,6 +116,7 @@ class AgentNodeConfig(BaseModel):
     reasoning_effort: ReasoningEffort = "medium"
     review_enabled: bool = False
     tools: list[AgentToolType] = Field(default_factory=list)
+    system_instructions: str | None = None
 
 
 class OutputNodeConfig(BaseModel):
@@ -243,6 +244,7 @@ class PipelineAgentRunRequest(BaseModel):
     document_ids: list[str] = Field(default_factory=list)
     evidence: list[PipelineEvidenceChunk] = Field(default_factory=list)
     upstream_outputs: list[PipelineAgentOutputEnvelope] = Field(default_factory=list)
+    system_instructions: str | None = None
 
 
 class PipelineRunStartedEvent(BaseModel):
